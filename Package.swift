@@ -7,7 +7,7 @@ let package = Package(
   platforms: [.macOS(.v13)],
   products: [
     .library(name: "GestureCore", targets: ["GestureCore"]),
-    .executable(name: "mac-mouse-gestures", targets: ["MacMouseGestures"]),
+    .executable(name: "MacMouseGestures", targets: ["MacMouseGestures"]),
   ],
   targets: [
     .target(name: "GestureCore"),

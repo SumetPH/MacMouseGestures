@@ -13,11 +13,11 @@ final class MenuBarController: NSObject {
       let config = NSImage.SymbolConfiguration(pointSize: 15, weight: .regular)
       let image = NSImage(
         systemSymbolName: "computermouse",
-        accessibilityDescription: "MacMouseGestures"
+        accessibilityDescription: "Mac Mouse Gestures"
       )?.withSymbolConfiguration(config)
       image?.isTemplate = true
       button.image = image
-      button.toolTip = "MacMouseGestures"
+      button.toolTip = "Mac Mouse Gestures"
       button.target = self
       button.action = #selector(togglePopover(_:))
     }
@@ -48,14 +48,14 @@ private struct MenuBarView: View {
       HStack(spacing: 10) {
         Image(systemName: "computermouse")
           .font(.title2)
-        Text("MacMouseGestures")
+        Text("Mac Mouse Gestures")
           .font(.headline)
         Spacer()
         Toggle("Enabled", isOn: $settings.isEnabled)
           .labelsHidden()
           .toggleStyle(.switch)
           .controlSize(.small)
-          .accessibilityLabel("Enable MacMouseGestures")
+          .accessibilityLabel("Enable Mac Mouse Gestures")
       }
 
       Divider()

@@ -104,9 +104,9 @@ license are reviewed first.
 ```bash
 swift test
 swift build
-.build/debug/mac-mouse-gestures --mode native-record
-.build/debug/mac-mouse-gestures --mode private-replay
-.build/debug/mac-mouse-gestures --mode private-drag
+.build/debug/MacMouseGestures --mode native-record
+.build/debug/MacMouseGestures --mode private-replay
+.build/debug/MacMouseGestures --mode private-drag
 ```
 
 ## Code Style and Testing

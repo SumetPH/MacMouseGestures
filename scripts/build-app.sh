@@ -12,14 +12,17 @@ case "$configuration" in
 esac
 
 project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-product_name="MacMouseGestures"
-executable_name="mac-mouse-gestures"
+product_name="Mac Mouse Gestures"
+executable_name="MacMouseGestures"
 app_dir="$project_root/.build/app/$product_name.app"
 contents_dir="$app_dir/Contents"
 icon_source="$project_root/Assets/AppIcon.png"
 iconset_dir="$project_root/.build/app/AppIcon.iconset"
 
 cd "$project_root"
+# Swift module caches contain absolute paths and become invalid if the project
+# directory is renamed or moved. App bundles should always use a clean build.
+swift package clean
 swift build --configuration "$configuration" --product "$executable_name"
 bin_dir="$(swift build --configuration "$configuration" --show-bin-path)"
 
@@ -54,11 +57,13 @@ cat > "$contents_dir/Info.plist" <<'PLIST'
   <key>CFBundleDevelopmentRegion</key>
   <string>en</string>
   <key>CFBundleExecutable</key>
-  <string>mac-mouse-gestures</string>
+  <string>MacMouseGestures</string>
   <key>CFBundleIdentifier</key>
   <string>dev.sumetph.MacMouseGestures</string>
   <key>CFBundleIconFile</key>
   <string>AppIcon.icns</string>
+  <key>CFBundleDisplayName</key>
+  <string>Mac Mouse Gestures</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundleName</key>
