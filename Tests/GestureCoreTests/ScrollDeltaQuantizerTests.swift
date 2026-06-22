@@ -22,6 +22,29 @@ struct ScrollDeltaQuantizerTests {
     #expect(regularMediumPixelsPerTick(scrollSpeed: 66.6666666667, displayScale: 2) == 132)
   }
 
+  @Test("scroll speed multiplier changes distance without changing the base curve")
+  func scrollSpeedMultiplier() {
+    #expect(
+      regularMediumPixelsPerTick(
+        scrollSpeed: 6.25,
+        displayScale: 1,
+        speedMultiplier: 1.5
+      ) == 90
+    )
+  }
+
+  @Test("smoothness multiplier scales animation duration")
+  func smoothnessMultiplier() {
+    #expect(
+      abs(
+        regularScrollBaseDuration(
+          timeBetweenTicks: 0.160,
+          smoothnessMultiplier: 1.25
+        ) - 0.225
+      ) < 0.000_001
+    )
+  }
+
   @Test("animation duration is rounded to whole 120 Hz frames")
   func durationUsesWholeFrames() {
     let frameDuration = 1.0 / 120.0

@@ -13,11 +13,18 @@ do {
 
   let application = NSApplication.shared
   application.setActivationPolicy(.accessory)
-  
+
   let controller = GestureController()
   try controller.start()
-  
-  withExtendedLifetime(controller) {
+
+  let settings = AppSettings()
+  controller.apply(settings: settings.values)
+  settings.onChange = { [weak controller] values in
+    controller?.apply(settings: values)
+  }
+  let menuBarController = MenuBarController(settings: settings)
+
+  withExtendedLifetime((controller, settings, menuBarController)) {
     application.run()
   }
 } catch {

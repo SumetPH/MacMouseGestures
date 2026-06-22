@@ -32,6 +32,8 @@ final class ScrollController: @unchecked Sendable {
   private var lineQuantizerX = BiasedDeltaQuantizer()
   private var lineQuantizerY = BiasedDeltaQuantizer()
   private var currentDisplayScale = 1.0
+  private var speedMultiplier = 1.0
+  private var smoothnessMultiplier = 1.0
   
   // Hybrid curve parameters
   private var transitionTime: Double = 0
@@ -48,6 +50,17 @@ final class ScrollController: @unchecked Sendable {
     case down = 2
     case left = 3
     case right = 4
+  }
+
+  func updateConfiguration(speed: Double, smoothness: Double) {
+    speedMultiplier = speed
+    smoothnessMultiplier = smoothness
+  }
+
+  func setEnabled(_ enabled: Bool) {
+    if !enabled {
+      stopAnimation()
+    }
   }
   
   func handle(event: CGEvent) -> Unmanaged<CGEvent>? {
@@ -111,7 +124,8 @@ final class ScrollController: @unchecked Sendable {
     let scrollSpeed = 1.0 / accelerationTickInterval
     var pxToScroll = regularMediumPixelsPerTick(
       scrollSpeed: scrollSpeed,
-      displayScale: currentDisplayScale
+      displayScale: currentDisplayScale,
+      speedMultiplier: speedMultiplier
     )
     
     // Apply fast scroll speedup
@@ -249,7 +263,10 @@ final class ScrollController: @unchecked Sendable {
 
     let wasRunning = isRunning
     
-    let baseDuration = regularScrollBaseDuration(timeBetweenTicks: timeBetweenTicks)
+    let baseDuration = regularScrollBaseDuration(
+      timeBetweenTicks: timeBetweenTicks,
+      smoothnessMultiplier: smoothnessMultiplier
+    )
     
     self.animDirection = direction
     self.animationValueTotal = delta
@@ -325,9 +342,12 @@ final class ScrollController: @unchecked Sendable {
   
   private func stopAnimation() {
     lock.lock()
+    let wasRunning = isRunning
     isRunning = false
     lock.unlock()
-    displayLink.stop()
+    if wasRunning {
+      displayLink.stop()
+    }
   }
   
   private func tick(timing: DisplayFrameTiming) {

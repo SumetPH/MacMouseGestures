@@ -3,9 +3,11 @@ import Foundation
 /// Mac Mouse Fix's Smoothness: Regular / Speed: Medium acceleration curve.
 public func regularMediumPixelsPerTick(
   scrollSpeed: Double,
-  displayScale: Double
+  displayScale: Double,
+  speedMultiplier: Double = 1
 ) -> Double {
   precondition(displayScale > 0)
+  precondition(speedMultiplier > 0)
 
   let minimumScrollSpeed = 1.0 / 0.160
   let maximumScrollSpeed = 1.0 / 0.015
@@ -15,12 +17,17 @@ public func regularMediumPixelsPerTick(
     max((scrollSpeed - minimumScrollSpeed) / (maximumScrollSpeed - minimumScrollSpeed), 0),
     1
   )
-  return minimumPixelsPerTick
+  let pixelsPerTick = minimumPixelsPerTick
     + progress * (maximumPixelsPerTick - minimumPixelsPerTick)
+  return pixelsPerTick * speedMultiplier
 }
 
 /// Base duration of Mac Mouse Fix's low-inertia hybrid curve.
-public func regularScrollBaseDuration(timeBetweenTicks: Double) -> Double {
+public func regularScrollBaseDuration(
+  timeBetweenTicks: Double,
+  smoothnessMultiplier: Double = 1
+) -> Double {
+  precondition(smoothnessMultiplier > 0)
   let slowestTickInterval = 0.160
   let fastestTickInterval = 0.001
   let progress = min(
@@ -34,7 +41,7 @@ public func regularScrollBaseDuration(timeBetweenTicks: Double) -> Double {
   let curvature = 4.0
   let curvedProgress = (exp(progress * curvature) - 1) / (exp(curvature) - 1)
   let milliseconds = 180.0 - curvedProgress * (180.0 - 110.0)
-  return milliseconds / 1_000.0
+  return milliseconds / 1_000.0 * smoothnessMultiplier
 }
 
 public func scrollDurationAlignedToFrames(

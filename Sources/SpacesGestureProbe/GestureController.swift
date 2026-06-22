@@ -20,6 +20,7 @@ private func eventTapCallback(
 final class GestureController {
   private let logger = EventLogger()
   private let fluidPoster = FluidGestureEventPoster()
+  private var isEnabled = true
   private var tracker = GestureTracker(threshold: 80.0) // Default threshold
   private var pointerGestureTap: CFMachPort?
   private var scrollTap: CFMachPort?
@@ -39,6 +40,15 @@ final class GestureController {
   private lazy var scrollController = ScrollController()
 
   init() {}
+
+  func apply(settings: AppSettings.Values) {
+    isEnabled = settings.isEnabled
+    scrollController.setEnabled(settings.isEnabled)
+    scrollController.updateConfiguration(
+      speed: settings.scrollSpeed,
+      smoothness: settings.scrollSmoothness
+    )
+  }
 
   func start() throws {
     let pointer = Unmanaged.passUnretained(self).toOpaque()
@@ -92,6 +102,7 @@ final class GestureController {
       logger.write("event_tap_reenabled", ["reason": "\(type.rawValue)"])
       return Unmanaged.passUnretained(event)
     }
+    guard isEnabled else { return Unmanaged.passUnretained(event) }
     if InputPoster.isSynthetic(event) {
       return Unmanaged.passUnretained(event)
     }
