@@ -21,8 +21,8 @@ final class GestureController {
   private let logger = EventLogger()
   private let fluidPoster = FluidGestureEventPoster()
   private var tracker = GestureTracker(threshold: 80.0) // Default threshold
-  private var tap: CFMachPort?
-  private var previousX: Double?
+  private var pointerGestureTap: CFMachPort?
+  private var scrollTap: CFMachPort?
   private var lastGestureID: String?
   private var fluidStarted = false
   private var fluidProgressValue = 0.0
@@ -36,43 +36,59 @@ final class GestureController {
     intervalNanoseconds: 100_000_000
   )
   private var fluidMotionTracker = FluidMotionTracker()
+  private lazy var scrollController = ScrollController()
 
   init() {}
 
   func start() throws {
-    let eventTypes: [CGEventType] = [
-      .rightMouseDown, .rightMouseDragged, .rightMouseUp
-    ]
-    let mask = eventTypes.reduce(CGEventMask(0)) { $0 | (CGEventMask(1) << $1.rawValue) }
     let pointer = Unmanaged.passUnretained(self).toOpaque()
-    
-    tap = CGEvent.tapCreate(
+
+    pointerGestureTap = CGEvent.tapCreate(
       tap: .cgSessionEventTap,
       place: .headInsertEventTap,
       options: .defaultTap,
-      eventsOfInterest: mask,
+      eventsOfInterest: eventMask(for: [
+        .rightMouseDown, .rightMouseDragged, .rightMouseUp,
+      ]),
       callback: eventTapCallback,
       userInfo: pointer
     )
-    guard let tap, let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0) else {
+    scrollTap = CGEvent.tapCreate(
+      tap: .cghidEventTap,
+      place: .headInsertEventTap,
+      options: .defaultTap,
+      eventsOfInterest: eventMask(for: [.scrollWheel]),
+      callback: eventTapCallback,
+      userInfo: pointer
+    )
+    guard let pointerGestureTap,
+      let scrollTap,
+      let pointerSource = CFMachPortCreateRunLoopSource(
+        kCFAllocatorDefault, pointerGestureTap, 0),
+      let scrollSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, scrollTap, 0)
+    else {
       throw ControllerError.eventTapUnavailable
     }
-    CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
-    CGEvent.tapEnable(tap: tap, enable: true)
-    
+    CFRunLoopAddSource(CFRunLoopGetMain(), pointerSource, .commonModes)
+    CFRunLoopAddSource(CFRunLoopGetMain(), scrollSource, .commonModes)
+    CGEvent.tapEnable(tap: pointerGestureTap, enable: true)
+    CGEvent.tapEnable(tap: scrollTap, enable: true)
+
     logger.write(
       "probe_started",
       [
         "mode": "private-drag",
         "os_version": ProcessInfo.processInfo.operatingSystemVersionString,
-        "tap": "session_active",
+        "pointer_tap": "session_active",
+        "scroll_tap": "hid_active",
         "event_mask": "gesture_control",
       ])
   }
 
   func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-      if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
+      if let pointerGestureTap { CGEvent.tapEnable(tap: pointerGestureTap, enable: true) }
+      if let scrollTap { CGEvent.tapEnable(tap: scrollTap, enable: true) }
       logger.write("event_tap_reenabled", ["reason": "\(type.rawValue)"])
       return Unmanaged.passUnretained(event)
     }
@@ -81,6 +97,8 @@ final class GestureController {
     }
 
     switch type {
+    case .scrollWheel:
+      return scrollController.handle(event: event)
     case .rightMouseDown:
       begin(at: event.location, timestamp: event.timestamp)
       return nil
@@ -97,9 +115,14 @@ final class GestureController {
     }
   }
 
+  private func eventMask(for eventTypes: [CGEventType]) -> CGEventMask {
+    eventTypes.reduce(CGEventMask(0)) {
+      $0 | (CGEventMask(1) << $1.rawValue)
+    }
+  }
+
   private func begin(at point: CGPoint, timestamp: UInt64) {
     tracker.begin(at: point)
-    previousX = point.x
     lastGestureID = UUID().uuidString
     fluidStarted = false
     fluidProgressValue = 0
@@ -121,7 +144,6 @@ final class GestureController {
   private func drag(to point: CGPoint, timestamp: UInt64) {
     guard let update = tracker.move(to: point) else { return }
     updateFluidDrag(update, timestamp: timestamp)
-    self.previousX = point.x
   }
 
   private func finish(at point: CGPoint, timestamp: UInt64) {
@@ -149,7 +171,6 @@ final class GestureController {
       motion: fluidMotionTracker.estimate,
       releaseDelta: releaseDelta
     )
-    previousX = nil
   }
 
   private func updateFluidDrag(
