@@ -95,8 +95,15 @@ final class ScrollController: @unchecked Sendable {
       return Unmanaged.passUnretained(event)
     }
     
+    // Shift+Scroll: redirect vertical scroll to horizontal
+    let flags = event.flags
+    let isShiftHeld = flags.contains(.maskShift)
+
     let rawDirection: ScrollDirection
-    if scrollDeltaAxis1 != 0 {
+    if isShiftHeld && scrollDeltaAxis1 != 0 {
+      // Shift converts vertical scroll to horizontal
+      rawDirection = scrollDeltaAxis1 > 0 ? .right : .left
+    } else if scrollDeltaAxis1 != 0 {
       rawDirection = scrollDeltaAxis1 > 0 ? .up : .down
     } else if scrollDeltaAxis2 != 0 {
       rawDirection = scrollDeltaAxis2 > 0 ? .right : .left
