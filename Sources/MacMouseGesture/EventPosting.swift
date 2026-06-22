@@ -30,6 +30,23 @@ enum InputPoster {
     keyUp?.post(tap: .cghidEventTap)
   }
 
+  static func switchSpaceShortcut(direction: GestureDirection) async {
+    let source = CGEventSource(stateID: .privateState)
+    let keyCode: CGKeyCode = (direction == .left) ? 124 : 123
+    
+    let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true)
+    keyDown?.flags = .maskControl
+    keyDown?.setIntegerValueField(.eventSourceUserData, value: syntheticMarker)
+    keyDown?.post(tap: .cghidEventTap)
+    
+    try? await Task.sleep(for: .milliseconds(10))
+    
+    let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false)
+    keyUp?.flags = []
+    keyUp?.setIntegerValueField(.eventSourceUserData, value: syntheticMarker)
+    keyUp?.post(tap: .cghidEventTap)
+  }
+
   static func isSynthetic(_ event: CGEvent) -> Bool {
     event.getIntegerValueField(.eventSourceUserData) == syntheticMarker
   }

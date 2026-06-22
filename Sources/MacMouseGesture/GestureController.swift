@@ -314,9 +314,30 @@ final class GestureController {
       isCancelled = abs(fluidProgressValue) < 0.5 && abs(velocityVal) < 200
     }
     
-    let phase: FluidGesturePhase = isCancelled ? .cancelled : .ended
+    var phase: FluidGesturePhase = isCancelled ? .cancelled : .ended
+    let isSwitchSpaceRightInMissionControl = (phase == .ended && isMissionControlActive() && {
+      if case .switchSpace(.left) = outcome { return true }
+      return false
+    }())
+
+    let postProgress: Double
+    if isSwitchSpaceRightInMissionControl {
+      phase = .cancelled
+      postProgress = fluidProgressValue
+    } else if phase == .ended && isMissionControlActive() {
+      postProgress = fluidReleaseTarget(for: outcome)
+    } else {
+      postProgress = fluidProgressValue
+    }
     
-    _ = fluidPoster.post(phase: phase, progress: fluidProgressValue, velocity: exitSpeed, location: location, axis: axis)
+    _ = fluidPoster.post(
+      phase: phase,
+      progress: postProgress,
+      velocity: exitSpeed,
+      location: location,
+      axis: axis,
+      doubleSend: !isMissionControlActive()
+    )
 
     logger.write(
       "fluid_drag_ended",
@@ -326,13 +347,23 @@ final class GestureController {
         "release_velocity": "\(velocityVal)",
         "release_delta": "\(releaseDelta)",
         "exit_speed": "\(exitSpeed)",
-        "progress": "\(fluidProgressValue)"
+        "progress": "\(fluidProgressValue)",
+        "is_mc_active": "\(isMissionControlActive())"
       ]
     )
 
-    if phase == .ended, case .missionControl(let direction) = outcome {
-      Task {
-        await InputPoster.missionControlShortcut(direction: direction)
+    if phase == .ended {
+      if case .missionControl(let direction) = outcome {
+        Task {
+          await InputPoster.missionControlShortcut(direction: direction)
+        }
+      }
+    } else if isSwitchSpaceRightInMissionControl {
+      if case .switchSpace(let direction) = outcome {
+        Task {
+          try? await Task.sleep(for: .milliseconds(100))
+          await InputPoster.switchSpaceShortcut(direction: direction)
+        }
       }
     }
   }
@@ -343,6 +374,19 @@ final class GestureController {
     let result = CGGetDisplaysWithPoint(point, 1, &display, &count)
     guard result == .success, count > 0 else { return CGRect(x: 0, y: 0, width: 1440, height: 900) }
     return CGDisplayBounds(display)
+  }
+
+  private func isMissionControlActive() -> Bool {
+    let list = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]] ?? []
+    for w in list {
+      if let owner = w[kCGWindowOwnerName as String] as? String, owner == "Dock" {
+        let layer = w[kCGWindowLayer as String] as? Int ?? 0
+        if layer == 18 {
+          return true
+        }
+      }
+    }
+    return false
   }
 }
 

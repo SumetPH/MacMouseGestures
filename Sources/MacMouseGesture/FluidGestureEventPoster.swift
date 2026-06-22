@@ -17,7 +17,8 @@ public final class FluidGestureEventPoster: @unchecked Sendable {
     progress: Double,
     velocity: Double = 0.0,
     location: CGPoint,
-    axis: GestureAxis = .horizontal
+    axis: GestureAxis = .horizontal,
+    doubleSend: Bool = true
   ) -> Bool {
     // MayBegin is not sent for DockSwipe gestures in Mac Mouse Fix.
     guard phase != .mayBegin else { return true }
@@ -86,10 +87,10 @@ public final class FluidGestureEventPoster: @unchecked Sendable {
       e30.setDoubleValueField(CGEventField(rawValue: 130)!, value: velocity)
     }
 
-    e30.post(tap: .cgSessionEventTap)
-    e29.post(tap: .cgSessionEventTap)
+    e30.post(tap: .cghidEventTap)
+    e29.post(tap: .cghidEventTap)
 
-    if phase == .ended || phase == .cancelled {
+    if doubleSend && (phase == .ended || phase == .cancelled) {
       scheduleDoubleSend(e30: e30, e29: e29)
     }
 
@@ -101,15 +102,15 @@ public final class FluidGestureEventPoster: @unchecked Sendable {
     guard let copyE30 = e30.copy(), let copyE29 = e29.copy() else { return }
 
     let doubleItem = DispatchWorkItem {
-      copyE30.post(tap: .cgSessionEventTap)
-      copyE29.post(tap: .cgSessionEventTap)
+      copyE30.post(tap: .cghidEventTap)
+      copyE29.post(tap: .cghidEventTap)
     }
     doubleSendWorkItem = doubleItem
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: doubleItem)
 
     let tripleItem = DispatchWorkItem {
-      copyE30.post(tap: .cgSessionEventTap)
-      copyE29.post(tap: .cgSessionEventTap)
+      copyE30.post(tap: .cghidEventTap)
+      copyE29.post(tap: .cghidEventTap)
     }
     tripleSendWorkItem = tripleItem
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: tripleItem)
