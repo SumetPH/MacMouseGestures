@@ -22,7 +22,7 @@ Requirements: macOS 13+, Xcode Command Line Tools, and Accessibility permission.
 ```bash
 swift test
 swift build
-.build/debug/spaces-gesture-probe --mode probe
+.build/debug/mac-mouse-gesture --mode probe
 ```
 
 To build a launchable app bundle instead, run:
@@ -44,13 +44,13 @@ Useful modes:
 
 ```bash
 # Isolated public-API experiment: no fallback shortcut
-.build/debug/spaces-gesture-probe --mode probe --scroll-scale 1
+.build/debug/mac-mouse-gesture --mode probe --scroll-scale 1
 
 # Reliable fallback with the small progress overlay
-.build/debug/spaces-gesture-probe --mode fallback
+.build/debug/mac-mouse-gesture --mode fallback
 
 # Scroll experiment plus fallback on release
-.build/debug/spaces-gesture-probe --mode hybrid --threshold 100
+.build/debug/mac-mouse-gesture --mode hybrid --threshold 100
 ```
 
 ### Private live-drag investigation
@@ -59,7 +59,7 @@ The first private-API gate is passive capture only; it does not synthesize or
 block any gesture:
 
 ```bash
-.build/debug/spaces-gesture-probe --mode native-record | tee native-record.log
+.build/debug/mac-mouse-gesture --mode native-record | tee native-record.log
 ```
 
 Grant Terminal both Accessibility and Input Monitoring, restart the command,
@@ -72,7 +72,7 @@ After a capture contains `native_gesture_raw`, replay that exact private event
 stream once with:
 
 ```bash
-.build/debug/spaces-gesture-probe --mode private-replay \
+.build/debug/mac-mouse-gesture --mode private-replay \
   --replay-file native-record.log
 ```
 
@@ -86,8 +86,8 @@ every event was posted. A second risk gate creates a fresh private swipe event
 using the vendored TouchEvents serializer:
 
 ```bash
-.build/debug/spaces-gesture-probe --mode touch-synthesis --direction left
-.build/debug/spaces-gesture-probe --mode touch-synthesis --direction right
+.build/debug/mac-mouse-gesture --mode touch-synthesis --direction left
+.build/debug/mac-mouse-gesture --mode touch-synthesis --direction right
 ```
 
 The process waits two seconds, posts `began`, waits 150 ms, posts `ended`, then
@@ -112,7 +112,7 @@ may-begin/began/changed/ended phases and signed progress. Run the interactive
 mouse-driven implementation with:
 
 ```bash
-.build/debug/spaces-gesture-probe --mode private-drag
+.build/debug/mac-mouse-gesture --mode private-drag
 ```
 
 Hold the right button and drag horizontally. Progress follows mouse displacement
@@ -213,7 +213,7 @@ interactively; `fallback` remains the stable public-path option.
 ## Project layout
 
 - `GestureCore`: deterministic right-drag recognition, covered by unit tests.
-- `SpacesGestureProbe`: event tap, synthetic event posting, structured logs,
+- `MacMouseGesture`: event tap, synthetic event posting, structured logs,
   shortcut fallback, and optional overlay.
 - `Vendor/TouchEvents`: isolated GPL-2.0-or-later TouchEvents serializer plus
   Apple Public Source License headers imported from Hammerspoon; see its README.

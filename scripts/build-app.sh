@@ -13,7 +13,7 @@ esac
 
 project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 product_name="Mac Mouse Gesture"
-executable_name="spaces-gesture-probe"
+executable_name="mac-mouse-gesture"
 app_dir="$project_root/.build/app/$product_name.app"
 contents_dir="$app_dir/Contents"
 
@@ -33,9 +33,9 @@ cat > "$contents_dir/Info.plist" <<'PLIST'
   <key>CFBundleDevelopmentRegion</key>
   <string>en</string>
   <key>CFBundleExecutable</key>
-  <string>spaces-gesture-probe</string>
+  <string>mac-mouse-gesture</string>
   <key>CFBundleIdentifier</key>
-  <string>dev.sumetph.SpacesGestureProbe</string>
+  <string>dev.sumetph.MacMouseGesture</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundleName</key>
