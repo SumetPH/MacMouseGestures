@@ -1,3 +1,4 @@
+import AppKit
 import ApplicationServices
 @preconcurrency import CoreGraphics
 import GestureCore
@@ -39,8 +40,11 @@ final class GestureController {
   private var fluidMotionTracker = FluidMotionTracker()
   private var immediateOutcome: GestureOutcome?
   private lazy var scrollController = ScrollController()
+  private var wakeObserver: (any NSObjectProtocol)?
 
   init() {}
+
+
 
   func apply(settings: AppSettings.Values) {
     isEnabled = settings.isEnabled
@@ -84,6 +88,18 @@ final class GestureController {
     CFRunLoopAddSource(CFRunLoopGetMain(), scrollSource, .commonModes)
     CGEvent.tapEnable(tap: pointerGestureTap, enable: true)
     CGEvent.tapEnable(tap: scrollTap, enable: true)
+
+    // Reset scroll animation state after screen wakes to avoid stale
+    // CVDisplayLink timestamps causing jitter on first scroll/swipe.
+    wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+      forName: NSWorkspace.didWakeNotification,
+      object: nil,
+      queue: .main
+    ) { [weak self] _ in
+      MainActor.assumeIsolated {
+        self?.scrollController.resetForWake()
+      }
+    }
 
     logger.write(
       "probe_started",

@@ -79,8 +79,9 @@ PLIST
 
 plutil -lint "$contents_dir/Info.plist" >/dev/null
 
-# Ad-hoc signing makes the bundle launchable without requiring a Developer ID.
-# Set CODE_SIGN_IDENTITY to use a persistent local or distribution identity.
-codesign --force --sign "${CODE_SIGN_IDENTITY:--}" "$app_dir"
+# Sign with Apple Development cert by default so Accessibility permission persists across builds.
+# The cert identity is stable, so macOS won't revoke the permission after each rebuild.
+# Override with CODE_SIGN_IDENTITY env var if needed (e.g. "-" for ad-hoc).
+codesign --force --sign "${CODE_SIGN_IDENTITY:-Apple Development}" "$app_dir"
 
 echo "Built: $app_dir"

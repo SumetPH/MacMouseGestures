@@ -62,6 +62,18 @@ final class ScrollController: @unchecked Sendable {
       stopAnimation()
     }
   }
+
+  /// Call this when the display wakes from sleep so the DisplayLink
+  /// re-syncs its frame clock and avoids stale-timestamp jitter.
+  func resetForWake() {
+    lock.lock()
+    isRunning = false
+    isWaitingForFirstFrame = false
+    lastFrameTime = 0
+    animationStartTime = 0
+    lock.unlock()
+    displayLink.stop()
+  }
   
   func handle(event: CGEvent) -> Unmanaged<CGEvent>? {
     // 1. Filter out synthetic events to prevent infinite loop
