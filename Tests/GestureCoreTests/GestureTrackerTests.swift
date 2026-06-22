@@ -27,14 +27,17 @@ struct GestureTrackerTests {
     #expect(tracker.end() == .switchSpace(.left))
   }
 
-  @Test("vertical movement does not become a Spaces gesture")
-  func verticalDragIsRejected() {
+  @Test("vertical movement becomes a Mission Control gesture")
+  func verticalDragIsAccepted() {
     var tracker = GestureTracker(threshold: 80)
     tracker.begin(at: CGPoint(x: 100, y: 100))
     let update = tracker.move(to: CGPoint(x: 130, y: 220))
 
-    #expect(update == nil)
-    #expect(tracker.end() == .rightClick)
+    #expect(update?.deltaY == 120)
+    #expect(update?.progress == 1)
+    #expect(update?.axis == .vertical)
+    #expect(update?.direction == .down)
+    #expect(tracker.end() == .missionControl(.down))
   }
 
   @Test("mouse-up position is the final sample for a fast flick")

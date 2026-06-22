@@ -16,7 +16,8 @@ public final class FluidGestureEventPoster: @unchecked Sendable {
     phase: FluidGesturePhase,
     progress: Double,
     velocity: Double = 0.0,
-    location: CGPoint
+    location: CGPoint,
+    axis: GestureAxis = .horizontal
   ) -> Bool {
     // MayBegin is not sent for DockSwipe gestures in Mac Mouse Fix.
     guard phase != .mayBegin else { return true }
@@ -61,13 +62,22 @@ public final class FluidGestureEventPoster: @unchecked Sendable {
     
     e30.setDoubleValueField(CGEventField(rawValue: 41)!, value: valFor41)
     
-    // weirdTypeOrSum for horizontal is 1.401298464324817e-45
-    let weirdTypeOrSum = 1.401298464324817e-45
+    // weirdTypeOrSum is 1.401298464324817e-45 for horizontal, 2.802596928649634e-45 for vertical
+    let weirdTypeOrSum: Double
+    let typeValue: Double
+    if axis == .horizontal {
+      weirdTypeOrSum = 1.401298464324817e-45
+      typeValue = 1.0
+    } else {
+      weirdTypeOrSum = 2.802596928649634e-45
+      typeValue = 2.0
+    }
+    
     e30.setDoubleValueField(CGEventField(rawValue: 119)!, value: weirdTypeOrSum)
     e30.setDoubleValueField(CGEventField(rawValue: 139)!, value: weirdTypeOrSum)
 
-    e30.setDoubleValueField(CGEventField(rawValue: 123)!, value: 1.0) // Horizontal type = 1
-    e30.setDoubleValueField(CGEventField(rawValue: 165)!, value: 1.0)
+    e30.setDoubleValueField(CGEventField(rawValue: 123)!, value: typeValue)
+    e30.setDoubleValueField(CGEventField(rawValue: 165)!, value: typeValue)
     
     e30.setIntegerValueField(CGEventField(rawValue: 136)!, value: 0) // invertedFromDevice = false
 

@@ -3,12 +3,20 @@ import CoreGraphics
 public enum GestureDirection: String, Equatable, Sendable {
   case left
   case right
+  case up
+  case down
+}
+
+public enum GestureAxis: String, Equatable, Sendable {
+  case horizontal
+  case vertical
 }
 
 public enum GestureOutcome: Equatable, Sendable {
   case none
   case rightClick
   case switchSpace(GestureDirection)
+  case missionControl(GestureDirection)
 }
 
 extension GestureOutcome {
@@ -17,13 +25,16 @@ extension GestureOutcome {
     case .none: "none"
     case .rightClick: "right_click"
     case .switchSpace(let direction): "switch_\(direction.rawValue)"
+    case .missionControl(let direction): "mission_control_\(direction.rawValue)"
     }
   }
 }
 
 public struct GestureUpdate: Equatable, Sendable {
   public let deltaX: CGFloat
+  public let deltaY: CGFloat
   public let progress: CGFloat
+  public let axis: GestureAxis
   public let direction: GestureDirection
 }
 
@@ -36,6 +47,7 @@ public struct GestureTracker: Sendable {
   private let threshold: CGFloat
   private var origin: CGPoint?
   private var latestUpdate: GestureUpdate?
+  private var axis: GestureAxis?
 
   public init(threshold: CGFloat = 80) {
     precondition(threshold > 0)
@@ -47,6 +59,7 @@ public struct GestureTracker: Sendable {
   public mutating func begin(at point: CGPoint) {
     origin = point
     latestUpdate = nil
+    axis = nil
   }
 
   public mutating func move(to point: CGPoint) -> GestureUpdate? {
@@ -54,15 +67,35 @@ public struct GestureTracker: Sendable {
 
     let deltaX = point.x - origin.x
     let deltaY = point.y - origin.y
-    guard abs(deltaX) > abs(deltaY) else {
-      latestUpdate = nil
-      return nil
+
+    if axis == nil {
+      let distance = max(abs(deltaX), abs(deltaY))
+      if distance >= 7 {
+        axis = abs(deltaX) >= abs(deltaY) ? .horizontal : .vertical
+      } else {
+        return nil
+      }
+    }
+
+    guard let lockedAxis = axis else { return nil }
+
+    let direction: GestureDirection
+    let progress: CGFloat
+
+    if lockedAxis == .horizontal {
+      direction = deltaX < 0 ? .left : .right
+      progress = min(abs(deltaX) / threshold, 1)
+    } else {
+      direction = deltaY < 0 ? .up : .down
+      progress = min(abs(deltaY) / threshold, 1)
     }
 
     let update = GestureUpdate(
       deltaX: deltaX,
-      progress: min(abs(deltaX) / threshold, 1),
-      direction: deltaX < 0 ? .left : .right
+      deltaY: deltaY,
+      progress: progress,
+      axis: lockedAxis,
+      direction: direction
     )
     latestUpdate = update
     return update
@@ -73,12 +106,23 @@ public struct GestureTracker: Sendable {
     defer {
       origin = nil
       latestUpdate = nil
+      axis = nil
     }
 
-    guard let latestUpdate, abs(latestUpdate.deltaX) >= threshold else {
+    guard let latestUpdate else {
       return .rightClick
     }
-    return .switchSpace(latestUpdate.direction)
+    
+    let activeDelta = latestUpdate.axis == .horizontal ? latestUpdate.deltaX : latestUpdate.deltaY
+    guard abs(activeDelta) >= threshold else {
+      return .rightClick
+    }
+    
+    if latestUpdate.axis == .horizontal {
+      return .switchSpace(latestUpdate.direction)
+    } else {
+      return .missionControl(latestUpdate.direction)
+    }
   }
 
   public mutating func end(at point: CGPoint) -> GestureCompletion {

@@ -1,3 +1,5 @@
+import Foundation
+
 public enum SyntheticSwipeDirection: Equatable, Sendable {
   case left
   case right
@@ -23,12 +25,14 @@ public struct FluidGestureStep: Equatable, Sendable {
 
 public struct FluidMotionEstimate: Equatable, Sendable {
   public let velocityX: Double
+  public let velocityY: Double
   public let directionalCoherence: Double
 }
 
 public struct FluidMotionTracker: Sendable {
   private struct Sample: Sendable {
     let deltaX: Double
+    let deltaY: Double
     let timestamp: UInt64
   }
 
@@ -41,12 +45,12 @@ public struct FluidMotionTracker: Sendable {
   }
 
   public mutating func reset(timestamp: UInt64) {
-    samples = [Sample(deltaX: 0, timestamp: timestamp)]
+    samples = [Sample(deltaX: 0, deltaY: 0, timestamp: timestamp)]
   }
 
   @discardableResult
-  public mutating func sample(deltaX: Double, timestamp: UInt64) -> FluidMotionEstimate {
-    samples.append(Sample(deltaX: deltaX, timestamp: timestamp))
+  public mutating func sample(deltaX: Double, deltaY: Double = 0.0, timestamp: UInt64) -> FluidMotionEstimate {
+    samples.append(Sample(deltaX: deltaX, deltaY: deltaY, timestamp: timestamp))
     samples.removeAll { sample in
       timestamp >= sample.timestamp && timestamp - sample.timestamp > windowNanoseconds
     }
@@ -56,17 +60,25 @@ public struct FluidMotionTracker: Sendable {
   public var estimate: FluidMotionEstimate {
     guard let first = samples.first, let last = samples.last,
       last.timestamp > first.timestamp
-    else { return FluidMotionEstimate(velocityX: 0, directionalCoherence: 0) }
+    else { return FluidMotionEstimate(velocityX: 0, velocityY: 0, directionalCoherence: 0) }
 
     let elapsed = Double(last.timestamp - first.timestamp) / 1_000_000_000
-    let netMovement = last.deltaX - first.deltaX
+    let netMovementX = last.deltaX - first.deltaX
+    let netMovementY = last.deltaY - first.deltaY
+    
     var pathLength = 0.0
     for index in 1..<samples.count {
-      pathLength += abs(samples[index].deltaX - samples[index - 1].deltaX)
+      let dx = samples[index].deltaX - samples[index - 1].deltaX
+      let dy = samples[index].deltaY - samples[index - 1].deltaY
+      pathLength += sqrt(dx * dx + dy * dy)
     }
+    
+    let netLength = sqrt(netMovementX * netMovementX + netMovementY * netMovementY)
+    
     return FluidMotionEstimate(
-      velocityX: netMovement / elapsed,
-      directionalCoherence: pathLength > 0 ? abs(netMovement) / pathLength : 0
+      velocityX: netMovementX / elapsed,
+      velocityY: netMovementY / elapsed,
+      directionalCoherence: pathLength > 0 ? netLength / pathLength : 0
     )
   }
 }
@@ -146,6 +158,10 @@ public func fluidReleaseTarget(for outcome: GestureOutcome) -> Double {
   switch outcome {
   case .switchSpace(.left): 4.0 / 3.0
   case .switchSpace(.right): -4.0 / 3.0
+  case .switchSpace(.up), .switchSpace(.down): 0.0
+  case .missionControl(.up): 1.0
+  case .missionControl(.down): -1.0
+  case .missionControl(.left), .missionControl(.right): 0.0
   case .none, .rightClick: 0
   }
 }
@@ -155,6 +171,7 @@ public func fluidReleaseOutcome(
   velocityX: Double,
   directionalCoherence: Double,
   fullDistance: Double,
+  axis: GestureAxis = .horizontal,
   minimumFlickDistance: Double = 30,
   flickVelocityThreshold: Double = 900,
   minimumFlickCoherence: Double = 0.75,
@@ -188,7 +205,11 @@ public func fluidReleaseOutcome(
   let commitsByFlick = qualifiesForMomentum && meetsFlickProgress
     && abs(projectedDeltaX) >= commitDistance
   guard commitsByDistance || commitsByFlick else { return .rightClick }
-  return .switchSpace(deltaX < 0 ? .left : .right)
+  if axis == .horizontal {
+    return .switchSpace(deltaX < 0 ? .left : .right)
+  } else {
+    return .missionControl(deltaX < 0 ? .up : .down)
+  }
 }
 
 public func fluidProjectedDeltaX(
@@ -214,6 +235,7 @@ public func fluidSettleVelocity(
 ) -> Double {
   switch outcome {
   case .switchSpace: releaseVelocityX
+  case .missionControl: releaseVelocityX
   case .none, .rightClick: 0
   }
 }

@@ -26,10 +26,12 @@ final class GestureController {
   private var lastGestureID: String?
   private var fluidStarted = false
   private var fluidProgressValue = 0.0
-  private var fluidFullDistanceValue = 800.0
+  private var fluidDisplayWidth = 1440.0
+  private var fluidDisplayHeight = 900.0
+  private var scaleH = 0.0
+  private var scaleV = 0.0
   private var fluidStartPoint: CGPoint?
   private var lastFluidPostTimestamp: UInt64?
-  private var lastUpdateDeltaX: Double = 0.0
   private var fluidProgressLogLimiter = TimestampRateLimiter(
     intervalNanoseconds: 100_000_000
   )
@@ -102,10 +104,14 @@ final class GestureController {
     fluidStarted = false
     fluidProgressValue = 0
     fluidStartPoint = point
-    fluidFullDistanceValue = fluidFullDistance(
-      displayWidth: displayWidth(containing: point),
-      customDistance: nil
-    )
+    
+    let bounds = displayBounds(containing: point)
+    fluidDisplayWidth = Double(bounds.width)
+    fluidDisplayHeight = Double(bounds.height)
+    
+    scaleH = 2.0 / (fluidDisplayWidth + 63.0)
+    scaleV = 1.0 / fluidDisplayHeight
+    
     lastFluidPostTimestamp = nil
     fluidProgressLogLimiter.reset()
     fluidMotionTracker.reset(timestamp: timestamp)
@@ -121,23 +127,27 @@ final class GestureController {
   private func finish(at point: CGPoint, timestamp: UInt64) {
     let completion = tracker.end(at: point)
     var outcome = completion.outcome
-    let releaseDeltaX = Double(completion.update?.deltaX ?? 0)
+    let releaseDelta = Double(completion.update?.axis == .horizontal ? (completion.update?.deltaX ?? 0) : (completion.update?.deltaY ?? 0))
+    let lockedAxis = completion.update?.axis ?? .horizontal
     
     if let finalUpdate = completion.update {
       updateFluidDrag(finalUpdate, timestamp: timestamp, forcePost: true)
       let motion = fluidMotionTracker.estimate
+      let velocityVal = lockedAxis == .horizontal ? motion.velocityX : motion.velocityY
       outcome = fluidReleaseOutcome(
-        deltaX: Double(finalUpdate.deltaX),
-        velocityX: motion.velocityX,
+        deltaX: Double(lockedAxis == .horizontal ? finalUpdate.deltaX : finalUpdate.deltaY),
+        velocityX: velocityVal,
         directionalCoherence: motion.directionalCoherence,
-        fullDistance: fluidFullDistanceValue
+        fullDistance: lockedAxis == .horizontal ? fluidDisplayWidth * 0.30 : fluidDisplayHeight * 0.30,
+        axis: lockedAxis
       )
     }
     finishFluidDrag(
       outcome: outcome,
+      axis: lockedAxis,
       releasePoint: point,
       motion: fluidMotionTracker.estimate,
-      releaseDeltaX: releaseDeltaX
+      releaseDelta: releaseDelta
     )
     previousX = nil
   }
@@ -148,30 +158,28 @@ final class GestureController {
     forcePost: Bool = false
   ) {
     guard let location = fluidStartPoint else { return }
-    fluidMotionTracker.sample(deltaX: Double(update.deltaX), timestamp: timestamp)
-    let activationDistance = min(80.0, 6.0)
-    guard fluidStarted || abs(update.deltaX) >= activationDistance else { return }
-
-    let screenWidth = displayWidth(containing: location)
-    let scaleH = 2.0 / (screenWidth + 63.0)
+    fluidMotionTracker.sample(deltaX: Double(update.deltaX), deltaY: Double(update.deltaY), timestamp: timestamp)
     
     if !fluidStarted {
-      _ = fluidPoster.post(phase: .mayBegin, progress: 0, location: location)
-      _ = fluidPoster.post(phase: .began, progress: 0, location: location)
+      _ = fluidPoster.post(phase: .mayBegin, progress: 0, location: location, axis: update.axis)
+      _ = fluidPoster.post(phase: .began, progress: 0, location: location, axis: update.axis)
       fluidStarted = true
       fluidProgressValue = 0
-      lastUpdateDeltaX = 0.0
       logger.write(
         "fluid_drag_began",
         [
           "gesture_id": lastGestureID!,
-          "display_width": "\(screenWidth)"
+          "axis": update.axis.rawValue,
+          "display_width": "\(fluidDisplayWidth)",
+          "display_height": "\(fluidDisplayHeight)"
         ])
     }
 
-    lastUpdateDeltaX = Double(update.deltaX)
-
-    fluidProgressValue = Double(update.deltaX) * scaleH * -1.0
+    if update.axis == .horizontal {
+      fluidProgressValue = Double(update.deltaX) * scaleH * -1.0
+    } else {
+      fluidProgressValue = Double(update.deltaY) * scaleV * -1.0
+    }
 
     if !forcePost,
       let lastFluidPostTimestamp,
@@ -185,7 +193,8 @@ final class GestureController {
     let posted = fluidPoster.post(
       phase: .changed,
       progress: fluidProgressValue,
-      location: location
+      location: location,
+      axis: update.axis
     )
     if posted, fluidProgressLogLimiter.shouldEmit(timestamp: timestamp, force: forcePost) {
       logger.write(
@@ -196,9 +205,10 @@ final class GestureController {
 
   private func finishFluidDrag(
     outcome: GestureOutcome,
+    axis: GestureAxis,
     releasePoint: CGPoint,
     motion: FluidMotionEstimate,
-    releaseDeltaX: Double
+    releaseDelta: Double
   ) {
     guard fluidStarted, let location = fluidStartPoint else {
       if outcome == .rightClick {
@@ -212,42 +222,52 @@ final class GestureController {
 
     fluidStarted = false
     
-    let screenWidth = displayWidth(containing: location)
-    let scaleH = 2.0 / (screenWidth + 63.0)
+    let exitSpeed: Double
+    if axis == .horizontal {
+      let lastFrameDeltaX = motion.velocityX / 60.0
+      exitSpeed = lastFrameDeltaX * scaleH * -100.0
+    } else {
+      let lastFrameDeltaY = motion.velocityY / 60.0
+      exitSpeed = lastFrameDeltaY * scaleV * -100.0
+    }
     
-    let lastFrameDeltaX = motion.velocityX / 60.0
-    let exitSpeed = lastFrameDeltaX * scaleH * -100.0
-    
+    let velocityVal = axis == .horizontal ? motion.velocityX : motion.velocityY
     let isCancelled: Bool
-    if (motion.velocityX < -50 && fluidProgressValue < 0) || (motion.velocityX > 50 && fluidProgressValue > 0) {
+    if (velocityVal < -50 && fluidProgressValue < 0) || (velocityVal > 50 && fluidProgressValue > 0) {
       isCancelled = true
     } else {
-      isCancelled = abs(fluidProgressValue) < 0.5 && abs(motion.velocityX) < 200
+      isCancelled = abs(fluidProgressValue) < 0.5 && abs(velocityVal) < 200
     }
     
     let phase: FluidGesturePhase = isCancelled ? .cancelled : .ended
     
-    _ = fluidPoster.post(phase: phase, progress: fluidProgressValue, velocity: exitSpeed, location: location)
+    _ = fluidPoster.post(phase: phase, progress: fluidProgressValue, velocity: exitSpeed, location: location, axis: axis)
 
     logger.write(
       "fluid_drag_ended",
       [
         "gesture_id": lastGestureID!,
         "outcome": isCancelled ? "cancelled" : "ended",
-        "release_velocity_x": "\(motion.velocityX)",
-        "release_delta_x": "\(releaseDeltaX)",
+        "release_velocity": "\(velocityVal)",
+        "release_delta": "\(releaseDelta)",
         "exit_speed": "\(exitSpeed)",
         "progress": "\(fluidProgressValue)"
       ]
     )
+
+    if phase == .ended, case .missionControl(let direction) = outcome {
+      Task {
+        await InputPoster.missionControlShortcut(direction: direction)
+      }
+    }
   }
 
-  private func displayWidth(containing point: CGPoint) -> Double {
+  private func displayBounds(containing point: CGPoint) -> CGRect {
     var display = CGDirectDisplayID()
     var count: UInt32 = 0
     let result = CGGetDisplaysWithPoint(point, 1, &display, &count)
-    guard result == .success, count > 0 else { return 1_440 }
-    return Double(CGDisplayBounds(display).width)
+    guard result == .success, count > 0 else { return CGRect(x: 0, y: 0, width: 1440, height: 900) }
+    return CGDisplayBounds(display)
   }
 }
 
