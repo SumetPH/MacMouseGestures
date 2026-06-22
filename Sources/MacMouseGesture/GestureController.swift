@@ -40,7 +40,7 @@ final class GestureController {
   private var fluidMotionTracker = FluidMotionTracker()
   private var immediateOutcome: GestureOutcome?
   private lazy var scrollController = ScrollController()
-  private var wakeObserver: (any NSObjectProtocol)?
+  private var wakeObserver: NotificationObserver?
 
   init() {}
 
@@ -89,16 +89,11 @@ final class GestureController {
     CGEvent.tapEnable(tap: pointerGestureTap, enable: true)
     CGEvent.tapEnable(tap: scrollTap, enable: true)
 
-    // Reset scroll animation state after screen wakes to avoid stale
-    // CVDisplayLink timestamps causing jitter on first scroll/swipe.
-    wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
-      forName: NSWorkspace.didWakeNotification,
-      object: nil,
-      queue: .main
-    ) { [weak self] _ in
-      MainActor.assumeIsolated {
-        self?.scrollController.resetForWake()
-      }
+    // Reset scroll animation state and warm up WindowServer caches after screen wakes 
+    // to avoid stale CVDisplayLink timestamps causing jitter and first-swipe lag.
+    wakeObserver = NotificationObserver { [weak self] in
+      self?.scrollController.resetForWake()
+      self?.warmUpAfterWake()
     }
 
     logger.write(
@@ -388,8 +383,50 @@ final class GestureController {
     }
     return false
   }
+
+  private func warmUpAfterWake() {
+    logger.write("warmup_after_wake_began", [:])
+    // Query display bounds and window list asynchronously in the background
+    // to warm up WindowServer caches before the user initiates a swipe.
+    Task.detached(priority: .userInitiated) {
+      // 1. Warm up CGWindowListCopyWindowInfo
+      _ = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID)
+      
+      // 2. Warm up display lookup with CGGetDisplaysWithPoint
+      var display = CGDirectDisplayID()
+      var count: UInt32 = 0
+      _ = CGGetDisplaysWithPoint(.zero, 1, &display, &count)
+      
+      await MainActor.run { [weak self] in
+        self?.logger.write("warmup_after_wake_completed", [:])
+      }
+    }
+  }
 }
 
 enum ControllerError: Error {
   case eventTapUnavailable
+}
+
+private final class NotificationObserver: NSObject, @unchecked Sendable {
+  private let onWake: @MainActor () -> Void
+
+  init(onWake: @escaping @MainActor @Sendable () -> Void) {
+    self.onWake = onWake
+    super.init()
+    
+    let center = NSWorkspace.shared.notificationCenter
+    center.addObserver(self, selector: #selector(handleWake), name: NSWorkspace.didWakeNotification, object: nil)
+    center.addObserver(self, selector: #selector(handleWake), name: NSWorkspace.screensDidWakeNotification, object: nil)
+  }
+
+  deinit {
+    NSWorkspace.shared.notificationCenter.removeObserver(self)
+  }
+
+  @objc private func handleWake() {
+    Task { @MainActor in
+      self.onWake()
+    }
+  }
 }
