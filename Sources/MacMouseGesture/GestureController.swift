@@ -37,6 +37,7 @@ final class GestureController {
     intervalNanoseconds: 100_000_000
   )
   private var fluidMotionTracker = FluidMotionTracker()
+  private var immediateOutcome: GestureOutcome?
   private lazy var scrollController = ScrollController()
 
   init() {}
@@ -138,6 +139,7 @@ final class GestureController {
     fluidStarted = false
     fluidProgressValue = 0
     fluidStartPoint = point
+    immediateOutcome = nil
     
     let bounds = displayBounds(containing: point)
     fluidDisplayWidth = Double(bounds.width)
@@ -154,10 +156,35 @@ final class GestureController {
 
   private func drag(to point: CGPoint, timestamp: UInt64) {
     guard let update = tracker.move(to: point) else { return }
+    guard immediateOutcome == nil else { return }
+
+    if let outcome = update.immediateOutcome {
+      immediateOutcome = outcome
+      logger.write(
+        "gesture_triggered_during_drag",
+        ["gesture_id": lastGestureID!, "outcome": outcome.logName])
+      if case .missionControl(let direction) = outcome {
+        Task {
+          await InputPoster.missionControlShortcut(direction: direction)
+        }
+      }
+      return
+    }
+
+    guard update.usesFluidPreview else { return }
     updateFluidDrag(update, timestamp: timestamp)
   }
 
   private func finish(at point: CGPoint, timestamp: UInt64) {
+    if let immediateOutcome {
+      _ = tracker.end(at: point)
+      logger.write(
+        "gesture_ended",
+        ["gesture_id": lastGestureID!, "outcome": immediateOutcome.logName])
+      self.immediateOutcome = nil
+      return
+    }
+
     let completion = tracker.end(at: point)
     var outcome = completion.outcome
     let releaseDelta = Double(completion.update?.axis == .horizontal ? (completion.update?.deltaX ?? 0) : (completion.update?.deltaY ?? 0))

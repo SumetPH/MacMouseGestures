@@ -36,6 +36,13 @@ public struct GestureUpdate: Equatable, Sendable {
   public let progress: CGFloat
   public let axis: GestureAxis
   public let direction: GestureDirection
+
+  public var immediateOutcome: GestureOutcome? {
+    guard axis == .vertical, progress >= 1 else { return nil }
+    return .missionControl(direction)
+  }
+
+  public var usesFluidPreview: Bool { axis == .horizontal }
 }
 
 public struct GestureCompletion: Equatable, Sendable {

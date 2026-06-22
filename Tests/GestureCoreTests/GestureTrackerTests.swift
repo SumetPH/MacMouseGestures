@@ -40,6 +40,30 @@ struct GestureTrackerTests {
     #expect(tracker.end() == .missionControl(.down))
   }
 
+  @Test("vertical drag activates as soon as it reaches the threshold")
+  func verticalDragActivatesDuringMove() {
+    var tracker = GestureTracker(threshold: 80)
+    tracker.begin(at: CGPoint(x: 100, y: 100))
+
+    let beforeThreshold = tracker.move(to: CGPoint(x: 105, y: 179))
+    let atThreshold = tracker.move(to: CGPoint(x: 105, y: 180))
+
+    #expect(beforeThreshold?.immediateOutcome == nil)
+    #expect(atThreshold?.immediateOutcome == .missionControl(.down))
+    #expect(atThreshold?.usesFluidPreview == false)
+  }
+
+  @Test("horizontal drag still waits for mouse up")
+  func horizontalDragDoesNotActivateDuringMove() {
+    var tracker = GestureTracker(threshold: 80)
+    tracker.begin(at: CGPoint(x: 100, y: 100))
+
+    let update = tracker.move(to: CGPoint(x: 20, y: 100))
+
+    #expect(update?.immediateOutcome == nil)
+    #expect(update?.usesFluidPreview == true)
+  }
+
   @Test("mouse-up position is the final sample for a fast flick")
   func fastFlickUsesReleasePosition() {
     var tracker = GestureTracker(threshold: 180)
