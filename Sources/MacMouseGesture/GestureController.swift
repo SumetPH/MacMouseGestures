@@ -41,6 +41,7 @@ final class GestureController {
   private var immediateOutcome: GestureOutcome?
   private lazy var scrollController = ScrollController()
   private var wakeObserver: NotificationObserver?
+  private var isMissionControlActiveOnStart = false
 
   init() {}
 
@@ -151,6 +152,14 @@ final class GestureController {
     fluidProgressValue = 0
     fluidStartPoint = point
     immediateOutcome = nil
+    
+    isMissionControlActiveOnStart = false
+    Task.detached(priority: .userInitiated) { [weak self] in
+      let active = self?.isMissionControlActive() ?? false
+      await MainActor.run {
+        self?.isMissionControlActiveOnStart = active
+      }
+    }
     
     let bounds = displayBounds(containing: point)
     fluidDisplayWidth = Double(bounds.width)
@@ -310,7 +319,7 @@ final class GestureController {
     }
     
     var phase: FluidGesturePhase = isCancelled ? .cancelled : .ended
-    let isSwitchSpaceRightInMissionControl = (phase == .ended && isMissionControlActive() && {
+    let isSwitchSpaceRightInMissionControl = (phase == .ended && isMissionControlActiveOnStart && {
       if case .switchSpace(.left) = outcome { return true }
       return false
     }())
@@ -319,7 +328,7 @@ final class GestureController {
     if isSwitchSpaceRightInMissionControl {
       phase = .cancelled
       postProgress = fluidProgressValue
-    } else if phase == .ended && isMissionControlActive() {
+    } else if phase == .ended && isMissionControlActiveOnStart {
       postProgress = fluidReleaseTarget(for: outcome)
     } else {
       postProgress = fluidProgressValue
@@ -331,7 +340,7 @@ final class GestureController {
       velocity: exitSpeed,
       location: location,
       axis: axis,
-      doubleSend: !isMissionControlActive()
+      doubleSend: !isMissionControlActiveOnStart
     )
 
     logger.write(
@@ -343,7 +352,7 @@ final class GestureController {
         "release_delta": "\(releaseDelta)",
         "exit_speed": "\(exitSpeed)",
         "progress": "\(fluidProgressValue)",
-        "is_mc_active": "\(isMissionControlActive())"
+        "is_mc_active": "\(isMissionControlActiveOnStart)"
       ]
     )
 
@@ -371,7 +380,7 @@ final class GestureController {
     return CGDisplayBounds(display)
   }
 
-  private func isMissionControlActive() -> Bool {
+  nonisolated private func isMissionControlActive() -> Bool {
     let list = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]] ?? []
     for w in list {
       if let owner = w[kCGWindowOwnerName as String] as? String, owner == "Dock" {

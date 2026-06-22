@@ -1,5 +1,9 @@
 import CoreGraphics
 import GestureCore
+import Foundation
+
+@_silgen_name("CoreDockSendNotification")
+private func CoreDockSendNotification(_ name: CFString, _ unknown: Int)
 
 private let syntheticMarker: Int64 = 0x5350_4143_4553
 
@@ -14,37 +18,42 @@ enum InputPoster {
   }
 
   static func missionControlShortcut(direction: GestureDirection) async {
-    let source = CGEventSource(stateID: .privateState)
-    let keyCode: CGKeyCode = (direction == .up) ? 126 : 125
+    let notificationName: String
+    if direction == .up {
+      notificationName = "com.apple.expose.awake"
+    } else {
+      notificationName = "com.apple.expose.front.awake"
+    }
     
-    let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true)
-    keyDown?.flags = .maskControl
-    keyDown?.setIntegerValueField(.eventSourceUserData, value: syntheticMarker)
-    keyDown?.post(tap: .cghidEventTap)
+    print("[DEBUG] missionControlShortcut called, direction: \(direction), sending notification: \(notificationName)")
+    fflush(stdout)
     
-    try? await Task.sleep(for: .milliseconds(10))
-    
-    let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false)
-    keyUp?.flags = []
-    keyUp?.setIntegerValueField(.eventSourceUserData, value: syntheticMarker)
-    keyUp?.post(tap: .cghidEventTap)
+    CoreDockSendNotification(notificationName as CFString, 0)
   }
 
   static func switchSpaceShortcut(direction: GestureDirection) async {
-    let source = CGEventSource(stateID: .privateState)
     let keyCode: CGKeyCode = (direction == .left) ? 124 : 123
     
-    let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true)
+    print("[DEBUG] switchSpaceShortcut called, direction: \(direction), keyCode: \(keyCode)")
+    fflush(stdout)
+    
+    let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true)
     keyDown?.flags = .maskControl
     keyDown?.setIntegerValueField(.eventSourceUserData, value: syntheticMarker)
-    keyDown?.post(tap: .cghidEventTap)
     
-    try? await Task.sleep(for: .milliseconds(10))
-    
-    let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false)
+    let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: false)
     keyUp?.flags = []
     keyUp?.setIntegerValueField(.eventSourceUserData, value: syntheticMarker)
-    keyUp?.post(tap: .cghidEventTap)
+    
+    print("[DEBUG] posting keyDown to cgSessionEventTap")
+    fflush(stdout)
+    keyDown?.post(tap: .cgSessionEventTap)
+    
+    try? await Task.sleep(for: .milliseconds(15))
+    
+    print("[DEBUG] posting keyUp to cgSessionEventTap")
+    fflush(stdout)
+    keyUp?.post(tap: .cgSessionEventTap)
   }
 
   static func isSynthetic(_ event: CGEvent) -> Bool {
