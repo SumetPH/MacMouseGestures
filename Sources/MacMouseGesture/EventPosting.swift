@@ -33,4 +33,29 @@ enum InputPoster {
   static func isSynthetic(_ event: CGEvent) -> Bool {
     event.getIntegerValueField(.eventSourceUserData) == syntheticMarker
   }
+
+  static func postScrollEvent(
+    dx: Int,
+    dy: Int,
+    dxLineInt: Int,
+    dyLineInt: Int,
+    dxLineFixed: Int64,
+    dyLineFixed: Int64
+  ) {
+    guard let event = CGEvent(source: nil) else { return }
+    
+    event.setIntegerValueField(CGEventField(rawValue: 55)!, value: Int64(CGEventType.scrollWheel.rawValue))
+    event.setIntegerValueField(.eventSourceUserData, value: syntheticMarker)
+    event.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)
+    
+    event.setIntegerValueField(.scrollWheelEventDeltaAxis1, value: Int64(dyLineInt))
+    event.setIntegerValueField(.scrollWheelEventPointDeltaAxis1, value: Int64(dy))
+    event.setIntegerValueField(.scrollWheelEventFixedPtDeltaAxis1, value: dyLineFixed)
+    
+    event.setIntegerValueField(.scrollWheelEventDeltaAxis2, value: Int64(dxLineInt))
+    event.setIntegerValueField(.scrollWheelEventPointDeltaAxis2, value: Int64(dx))
+    event.setIntegerValueField(.scrollWheelEventFixedPtDeltaAxis2, value: dxLineFixed)
+    
+    event.post(tap: .cgSessionEventTap)
+  }
 }
