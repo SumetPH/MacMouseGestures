@@ -11,16 +11,9 @@ let package = Package(
   ],
   targets: [
     .target(name: "GestureCore"),
-    .target(
-      name: "CTouchEvents",
-      path: "Vendor/TouchEvents",
-      exclude: ["LICENSE.md"],
-      sources: ["TouchEvents.c"],
-      publicHeadersPath: "."
-    ),
     .executableTarget(
       name: "SpacesGestureProbe",
-      dependencies: ["GestureCore", "CTouchEvents"]
+      dependencies: ["GestureCore"]
     ),
     .testTarget(
       name: "GestureCoreTests",

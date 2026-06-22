@@ -1,6 +1,7 @@
 import ApplicationServices
 @preconcurrency import CoreGraphics
 import GestureCore
+import Foundation
 
 private func eventTapCallback(
   proxy: CGEventTapProxy,
@@ -15,26 +16,12 @@ private func eventTapCallback(
   }
 }
 
-private struct PendingFluidSettle {
-  let location: CGPoint
-  let target: Double
-  let gestureID: String
-  let outcome: GestureOutcome
-  let motion: FluidMotionEstimate
-  let releaseDeltaX: Double
-}
-
 @MainActor
 final class GestureController {
-  private let configuration: Configuration
   private let logger = EventLogger()
-  private let scrollPoster: ScrollEventPoster
   private let fluidPoster = FluidGestureEventPoster()
-  private let overlay: OverlayController?
-  private let nativeRecorder: NativeGestureRecorder
-  private var tracker: GestureTracker
+  private var tracker = GestureTracker(threshold: 80.0) // Default threshold
   private var tap: CFMachPort?
-  private var scrollStarted = false
   private var previousX: Double?
   private var lastGestureID: String?
   private var fluidStarted = false
@@ -48,29 +35,19 @@ final class GestureController {
   )
   private var fluidMotionTracker = FluidMotionTracker()
 
-  init(configuration: Configuration) {
-    self.configuration = configuration
-    tracker = GestureTracker(threshold: configuration.threshold)
-    scrollPoster = ScrollEventPoster(scale: configuration.scrollScale)
-    overlay = configuration.showsOverlay ? OverlayController() : nil
-    nativeRecorder = NativeGestureRecorder(logger: logger)
-  }
+  init() {}
 
   func start() throws {
-    let mask: CGEventMask
-    if configuration.mode == .nativeRecord {
-      mask = .max
-    } else {
-      let eventTypes: [CGEventType] = [
-        .rightMouseDown, .rightMouseDragged, .rightMouseUp, .keyDown, .keyUp, .flagsChanged,
-      ]
-      mask = eventTypes.reduce(CGEventMask(0)) { $0 | (CGEventMask(1) << $1.rawValue) }
-    }
+    let eventTypes: [CGEventType] = [
+      .rightMouseDown, .rightMouseDragged, .rightMouseUp
+    ]
+    let mask = eventTypes.reduce(CGEventMask(0)) { $0 | (CGEventMask(1) << $1.rawValue) }
     let pointer = Unmanaged.passUnretained(self).toOpaque()
+    
     tap = CGEvent.tapCreate(
       tap: .cgSessionEventTap,
       place: .headInsertEventTap,
-      options: configuration.mode == .nativeRecord ? .listenOnly : .defaultTap,
+      options: .defaultTap,
       eventsOfInterest: mask,
       callback: eventTapCallback,
       userInfo: pointer
@@ -80,13 +57,14 @@ final class GestureController {
     }
     CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
     CGEvent.tapEnable(tap: tap, enable: true)
+    
     logger.write(
       "probe_started",
       [
-        "mode": configuration.mode.rawValue,
+        "mode": "private-drag",
         "os_version": ProcessInfo.processInfo.operatingSystemVersionString,
-        "tap": configuration.mode == .nativeRecord ? "session_listen_only" : "session_active",
-        "event_mask": configuration.mode == .nativeRecord ? "all" : "gesture_control",
+        "tap": "session_active",
+        "event_mask": "gesture_control",
       ])
   }
 
@@ -96,29 +74,7 @@ final class GestureController {
       logger.write("event_tap_reenabled", ["reason": "\(type.rawValue)"])
       return Unmanaged.passUnretained(event)
     }
-    if configuration.mode == .nativeRecord {
-      nativeRecorder.recordEnvelope(type: type, event: event)
-      if NativeGestureRecorder.shouldRecord(type: type) {
-        nativeRecorder.record(type: type, event: event)
-      }
-      return Unmanaged.passUnretained(event)
-    }
     if InputPoster.isSynthetic(event) {
-      if type == .keyDown || type == .keyUp || type == .flagsChanged {
-        let eventType =
-          switch type {
-          case .keyDown: "key_down"
-          case .keyUp: "key_up"
-          default: "flags_changed"
-          }
-        logger.write(
-          "synthetic_key_observed",
-          [
-            "event_type": eventType,
-            "flags": "\(event.flags.rawValue)",
-            "key_code": "\(event.getIntegerValueField(.keyboardEventKeycode))",
-          ])
-      }
       return Unmanaged.passUnretained(event)
     }
 
@@ -134,9 +90,6 @@ final class GestureController {
       guard tracker.isTracking else { return Unmanaged.passUnretained(event) }
       finish(at: event.location, timestamp: event.timestamp)
       return nil
-    case .keyDown:
-      recordObservation(keyCode: CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode)))
-      return Unmanaged.passUnretained(event)
     default:
       return Unmanaged.passUnretained(event)
     }
@@ -145,94 +98,48 @@ final class GestureController {
   private func begin(at point: CGPoint, timestamp: UInt64) {
     tracker.begin(at: point)
     previousX = point.x
-    scrollStarted = false
-    scrollPoster.beginSequence()
     lastGestureID = UUID().uuidString
     fluidStarted = false
     fluidProgressValue = 0
     fluidStartPoint = point
     fluidFullDistanceValue = fluidFullDistance(
       displayWidth: displayWidth(containing: point),
-      customDistance: configuration.fluidDistance
+      customDistance: nil
     )
     lastFluidPostTimestamp = nil
     fluidProgressLogLimiter.reset()
     fluidMotionTracker.reset(timestamp: timestamp)
-    overlay?.show(at: point)
     logger.write("gesture_began", ["gesture_id": lastGestureID!])
   }
 
   private func drag(to point: CGPoint, timestamp: UInt64) {
-    guard let update = tracker.move(to: point), let previousX else { return }
-    overlay?.update(update)
-    if configuration.mode == .privateDrag {
-      updateFluidDrag(update, timestamp: timestamp)
-      self.previousX = point.x
-      return
-    }
-    if configuration.mode.postsScroll {
-      let phase: CGScrollPhase = scrollStarted ? .changed : .began
-      if let fields = scrollPoster.post(deltaX: point.x - previousX, phase: phase) {
-        logger.write(
-          "scroll_posted", fields.merging(["gesture_id": lastGestureID!]) { current, _ in current })
-      }
-      scrollStarted = true
-    }
+    guard let update = tracker.move(to: point) else { return }
+    updateFluidDrag(update, timestamp: timestamp)
     self.previousX = point.x
   }
 
   private func finish(at point: CGPoint, timestamp: UInt64) {
-    if configuration.mode.postsScroll, scrollStarted {
-      if let fields = scrollPoster.post(deltaX: 0, phase: .ended) {
-        logger.write(
-          "scroll_posted", fields.merging(["gesture_id": lastGestureID!]) { current, _ in current })
-      }
-    }
     let completion = tracker.end(at: point)
     var outcome = completion.outcome
     let releaseDeltaX = Double(completion.update?.deltaX ?? 0)
-    overlay?.hide()
-    if configuration.mode == .privateDrag {
-      if let finalUpdate = completion.update {
-        updateFluidDrag(finalUpdate, timestamp: timestamp, forcePost: true)
-        let motion = fluidMotionTracker.estimate
-        outcome = fluidReleaseOutcome(
-          deltaX: Double(finalUpdate.deltaX),
-          velocityX: motion.velocityX,
-          directionalCoherence: motion.directionalCoherence,
-          fullDistance: fluidFullDistanceValue
-        )
-      }
-      finishFluidDrag(
-        outcome: outcome,
-        releasePoint: point,
-        motion: fluidMotionTracker.estimate,
-        releaseDeltaX: releaseDeltaX
+    
+    if let finalUpdate = completion.update {
+      updateFluidDrag(finalUpdate, timestamp: timestamp, forcePost: true)
+      let motion = fluidMotionTracker.estimate
+      outcome = fluidReleaseOutcome(
+        deltaX: Double(finalUpdate.deltaX),
+        velocityX: motion.velocityX,
+        directionalCoherence: motion.directionalCoherence,
+        fullDistance: fluidFullDistanceValue
       )
-      previousX = nil
-      scrollStarted = false
-      return
     }
-    switch outcome {
-    case .switchSpace(let direction):
-      if configuration.mode.sendsShortcut {
-        postShortcutAfterMouseRelease(direction: direction, gestureID: lastGestureID!)
-      }
-      logger.write(
-        "gesture_ended", ["gesture_id": lastGestureID!, "outcome": "switch_\(direction.rawValue)"])
-      if configuration.mode.postsScroll {
-        logger.write(
-          "observation_required",
-          ["gesture_id": lastGestureID!, "prompt": "press Y if Spaces moved live, N if it did not"])
-      }
-    case .rightClick:
-      InputPoster.rightClick(at: point)
-      logger.write("gesture_ended", ["gesture_id": lastGestureID!, "outcome": "right_click"])
-    case .none:
-      break
-    }
+    finishFluidDrag(
+      outcome: outcome,
+      releasePoint: point,
+      motion: fluidMotionTracker.estimate,
+      releaseDeltaX: releaseDeltaX
+    )
     previousX = nil
-    scrollStarted = false
   }
 
   private func updateFluidDrag(
@@ -242,7 +149,7 @@ final class GestureController {
   ) {
     guard let location = fluidStartPoint else { return }
     fluidMotionTracker.sample(deltaX: Double(update.deltaX), timestamp: timestamp)
-    let activationDistance = min(configuration.threshold, 6)
+    let activationDistance = min(80.0, 6.0)
     guard fluidStarted || abs(update.deltaX) >= activationDistance else { return }
 
     let screenWidth = displayWidth(containing: location)
@@ -308,16 +215,9 @@ final class GestureController {
     let screenWidth = displayWidth(containing: location)
     let scaleH = 2.0 / (screenWidth + 63.0)
     
-    // MMF uses: exitSpeed = _dockSwipeLastDelta * 100
-    // We approximate last frame's delta from velocity (points per second) / 60 frames per second
     let lastFrameDeltaX = motion.velocityX / 60.0
     let exitSpeed = lastFrameDeltaX * scaleH * -100.0
     
-    // MMF logic: If direction of velocity is opposite to progress, cancel
-    // Note: fluidProgressValue is inverted (left drag = positive progress). 
-    // velocityX is positive when dragging right.
-    // So if velocityX > 0, we are dragging right (progress should be negative).
-    // If progress is positive (we dragged left overall), and velocityX > 0 (flicked right), they are opposite.
     let isCancelled: Bool
     if (motion.velocityX < -50 && fluidProgressValue < 0) || (motion.velocityX > 50 && fluidProgressValue > 0) {
       isCancelled = true
@@ -348,27 +248,6 @@ final class GestureController {
     let result = CGGetDisplaysWithPoint(point, 1, &display, &count)
     guard result == .success, count > 0 else { return 1_440 }
     return Double(CGDisplayBounds(display).width)
-  }
-
-  private func recordObservation(keyCode: CGKeyCode) {
-    guard let gestureID = lastGestureID else { return }
-    let result = keyCode == 16 ? "live" : keyCode == 45 ? "not_live" : nil
-    guard let result else { return }
-    logger.write("spaces_live_animation_observation", ["gesture_id": gestureID, "result": result])
-  }
-
-  private func postShortcutAfterMouseRelease(
-    direction: GestureDirection, gestureID: String
-  ) {
-    Task { @MainActor in
-      try? await Task.sleep(for: .milliseconds(50))
-      await InputPoster.shortcut(direction: direction)
-      logger.write(
-        "shortcut_posted",
-        [
-          "gesture_id": gestureID, "shortcut": "control_\(direction.rawValue)",
-        ])
-    }
   }
 }
 

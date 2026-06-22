@@ -1,3 +1,8 @@
+public enum SyntheticSwipeDirection: Equatable, Sendable {
+  case left
+  case right
+}
+
 public enum FluidGesturePhase: Equatable, Sendable {
   case mayBegin
   case began
