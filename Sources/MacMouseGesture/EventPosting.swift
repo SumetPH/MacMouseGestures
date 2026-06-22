@@ -20,14 +20,14 @@ enum InputPoster {
     let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true)
     keyDown?.flags = .maskControl
     keyDown?.setIntegerValueField(.eventSourceUserData, value: syntheticMarker)
-    keyDown?.post(tap: .cgSessionEventTap)
+    keyDown?.post(tap: .cghidEventTap)
     
     try? await Task.sleep(for: .milliseconds(10))
     
     let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false)
     keyUp?.flags = []
     keyUp?.setIntegerValueField(.eventSourceUserData, value: syntheticMarker)
-    keyUp?.post(tap: .cgSessionEventTap)
+    keyUp?.post(tap: .cghidEventTap)
   }
 
   static func isSynthetic(_ event: CGEvent) -> Bool {
