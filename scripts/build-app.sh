@@ -12,8 +12,8 @@ case "$configuration" in
 esac
 
 project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-product_name="Mac Mouse Gesture"
-executable_name="mac-mouse-gesture"
+product_name="MacMouseGestures"
+executable_name="mac-mouse-gestures"
 app_dir="$project_root/.build/app/$product_name.app"
 contents_dir="$app_dir/Contents"
 icon_source="$project_root/Assets/AppIcon.png"
@@ -54,15 +54,15 @@ cat > "$contents_dir/Info.plist" <<'PLIST'
   <key>CFBundleDevelopmentRegion</key>
   <string>en</string>
   <key>CFBundleExecutable</key>
-  <string>mac-mouse-gesture</string>
+  <string>mac-mouse-gestures</string>
   <key>CFBundleIdentifier</key>
-  <string>dev.sumetph.MacMouseGesture</string>
+  <string>dev.sumetph.MacMouseGestures</string>
   <key>CFBundleIconFile</key>
   <string>AppIcon.icns</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundleName</key>
-  <string>Mac Mouse Gesture</string>
+  <string>MacMouseGestures</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>

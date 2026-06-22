@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 
-swift build && swift run mac-mouse-gesture
+swift build && swift run mac-mouse-gestures

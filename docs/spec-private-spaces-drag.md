@@ -92,7 +92,7 @@ rejected by runtime evidence.
 - AppKit, CoreGraphics, ApplicationServices
 - Private symbols or raw event fields loaded only by the private modes
 - `GestureCore`: deterministic direction/progress/commit logic
-- `MacMouseGesture`: capture, event construction, posting, logs, and overlay
+- `MacMouseGestures`: capture, event construction, posting, logs, and overlay
 - `Tests`: pure sequence and gesture-state regression tests
 
 No third-party binary dependency is planned for the capture slice. A small
@@ -104,9 +104,9 @@ license are reviewed first.
 ```bash
 swift test
 swift build
-.build/debug/mac-mouse-gesture --mode native-record
-.build/debug/mac-mouse-gesture --mode private-replay
-.build/debug/mac-mouse-gesture --mode private-drag
+.build/debug/mac-mouse-gestures --mode native-record
+.build/debug/mac-mouse-gestures --mode private-replay
+.build/debug/mac-mouse-gestures --mode private-drag
 ```
 
 ## Code Style and Testing

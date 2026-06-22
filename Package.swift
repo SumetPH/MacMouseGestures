@@ -3,16 +3,16 @@
 import PackageDescription
 
 let package = Package(
-  name: "MacMouseGesture",
+  name: "MacMouseGestures",
   platforms: [.macOS(.v13)],
   products: [
     .library(name: "GestureCore", targets: ["GestureCore"]),
-    .executable(name: "mac-mouse-gesture", targets: ["MacMouseGesture"]),
+    .executable(name: "mac-mouse-gestures", targets: ["MacMouseGestures"]),
   ],
   targets: [
     .target(name: "GestureCore"),
     .executableTarget(
-      name: "MacMouseGesture",
+      name: "MacMouseGestures",
       dependencies: ["GestureCore"]
     ),
     .testTarget(
