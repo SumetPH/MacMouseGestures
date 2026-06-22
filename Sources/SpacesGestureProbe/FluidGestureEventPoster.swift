@@ -1,68 +1,107 @@
 import CoreGraphics
+import Foundation
 import GestureCore
 
-final class FluidGestureEventPoster {
-  private let source = CGEventSource(stateID: .privateState)
+public final class FluidGestureEventPoster: @unchecked Sendable {
+  private let eventSource: CGEventSource?
+  private var doubleSendWorkItem: DispatchWorkItem?
+  private var tripleSendWorkItem: DispatchWorkItem?
 
-  func post(phase: FluidGesturePhase, progress: Double, location: CGPoint) -> [String: String]? {
-    guard let event = makeEvent(phase: phase, progress: progress, location: location) else {
-      return nil
-    }
-    event.post(tap: .cgSessionEventTap)
-    return [
-      "cg_type": "\(event.type.rawValue)",
-      "data_bytes": event.data.map { "\(CFDataGetLength($0))" } ?? "none",
-      "phase": "\(phase.rawFluidPhase)",
-      "progress": "\(progress)",
-    ]
+  public init() {
+    self.eventSource = CGEventSource(stateID: .hidSystemState)
   }
 
-  private func makeEvent(
+  @MainActor
+  public func post(
     phase: FluidGesturePhase,
     progress: Double,
+    velocity: Double = 0.0,
     location: CGPoint
-  ) -> CGEvent? {
-    guard
-      let type = CGEventType(rawValue: 30),
-      let source,
-      let event = CGEvent(source: source)
-    else { return nil }
+  ) -> Bool {
+    // MayBegin is not sent for DockSwipe gestures in Mac Mouse Fix.
+    guard phase != .mayBegin else { return true }
 
-    event.type = type
-    event.location = location
-    event.flags = CGEventFlags(rawValue: phase == .changed ? 0x2000_0100 : 0x2000_0000)
-    event.setIntegerValueField(field(0x6e), value: 0x17)
-    event.setIntegerValueField(field(0x6f), value: 0)
-    event.setIntegerValueField(field(0x70), value: 0)
-    event.setIntegerValueField(field(0x84), value: phase.rawFluidPhase)
-    event.setIntegerValueField(field(0x85), value: 0)
-    event.setIntegerValueField(field(0x73), value: 0)
-    event.setIntegerValueField(field(0x7b), value: 1)
-    event.setIntegerValueField(field(0x86), value: 0)
-    event.setDoubleValueField(field(0x7c), value: progress)
-    event.setDoubleValueField(field(0x7d), value: 0)
-    event.setDoubleValueField(field(0x7e), value: 0)
-    event.setDoubleValueField(field(0x81), value: 0)
-    event.setDoubleValueField(field(0x82), value: 0)
-    event.setDoubleValueField(field(0x83), value: 0)
-    event.setIntegerValueField(field(0x88), value: 0)
-    event.setIntegerValueField(field(0x8a), value: 0)
-    return event
-  }
-
-  private func field(_ rawValue: UInt32) -> CGEventField {
-    // These private values were observed in BetterMouse's accepted type-30 stream.
-    CGEventField(rawValue: rawValue)!
-  }
-}
-
-extension FluidGesturePhase {
-  var rawFluidPhase: Int64 {
-    switch self {
-    case .mayBegin: 0x80
-    case .began: 1
-    case .changed: 2
-    case .ended: 4
+    let rawPhase: Int64
+    switch phase {
+    case .mayBegin: rawPhase = 128
+    case .began: rawPhase = 1
+    case .changed: rawPhase = 2
+    case .ended: rawPhase = 4
+    case .cancelled: rawPhase = 8
     }
+
+    if phase == .began {
+      doubleSendWorkItem?.cancel()
+      tripleSendWorkItem?.cancel()
+      doubleSendWorkItem = nil
+      tripleSendWorkItem = nil
+    }
+
+    let valFor41 = 33231.0
+    
+    // Create e29 (NSEventTypeGesture) event
+    guard let e29 = CGEvent(source: nil) else { return false }
+    e29.setDoubleValueField(CGEventField(rawValue: 55)!, value: 29.0) // Set event type
+    e29.setDoubleValueField(CGEventField(rawValue: 41)!, value: valFor41)
+
+    // Create e30 event
+    guard let e30 = CGEvent(source: nil) else { return false }
+    
+    e30.setDoubleValueField(CGEventField(rawValue: 55)!, value: 30.0) // Set event type
+    e30.setDoubleValueField(CGEventField(rawValue: 110)!, value: 23.0) // subtype = kIOHIDEventTypeDockSwipe (23)
+    e30.setDoubleValueField(CGEventField(rawValue: 132)!, value: Double(rawPhase))
+    e30.setDoubleValueField(CGEventField(rawValue: 134)!, value: Double(rawPhase))
+
+    e30.setDoubleValueField(CGEventField(rawValue: 124)!, value: progress)
+    
+    // Encoded Float32 ofs inside Int64
+    let floatBits = Float32(progress).bitPattern
+    let progressInt64 = Int64(floatBits)
+    e30.setIntegerValueField(CGEventField(rawValue: 135)!, value: progressInt64)
+    
+    e30.setDoubleValueField(CGEventField(rawValue: 41)!, value: valFor41)
+    
+    // weirdTypeOrSum for horizontal is 1.401298464324817e-45
+    let weirdTypeOrSum = 1.401298464324817e-45
+    e30.setDoubleValueField(CGEventField(rawValue: 119)!, value: weirdTypeOrSum)
+    e30.setDoubleValueField(CGEventField(rawValue: 139)!, value: weirdTypeOrSum)
+
+    e30.setDoubleValueField(CGEventField(rawValue: 123)!, value: 1.0) // Horizontal type = 1
+    e30.setDoubleValueField(CGEventField(rawValue: 165)!, value: 1.0)
+    
+    e30.setIntegerValueField(CGEventField(rawValue: 136)!, value: 0) // invertedFromDevice = false
+
+    if phase == .ended || phase == .cancelled {
+      e30.setDoubleValueField(CGEventField(rawValue: 129)!, value: velocity)
+      e30.setDoubleValueField(CGEventField(rawValue: 130)!, value: velocity)
+    }
+
+    e30.post(tap: .cgSessionEventTap)
+    e29.post(tap: .cgSessionEventTap)
+
+    if phase == .ended || phase == .cancelled {
+      scheduleDoubleSend(e30: e30, e29: e29)
+    }
+
+    return true
+  }
+
+  @MainActor
+  private func scheduleDoubleSend(e30: CGEvent, e29: CGEvent) {
+    guard let copyE30 = e30.copy(), let copyE29 = e29.copy() else { return }
+
+    let doubleItem = DispatchWorkItem {
+      copyE30.post(tap: .cgSessionEventTap)
+      copyE29.post(tap: .cgSessionEventTap)
+    }
+    doubleSendWorkItem = doubleItem
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: doubleItem)
+
+    let tripleItem = DispatchWorkItem {
+      copyE30.post(tap: .cgSessionEventTap)
+      copyE29.post(tap: .cgSessionEventTap)
+    }
+    tripleSendWorkItem = tripleItem
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: tripleItem)
   }
 }

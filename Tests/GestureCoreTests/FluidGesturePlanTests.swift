@@ -28,7 +28,7 @@ struct FluidGesturePlanTests {
 
   @Test("default full drag distance follows the captured display-width ratio")
   func defaultFullDistance() {
-    #expect(fluidFullDistance(displayWidth: 1_920, customDistance: nil) == 1_920 * 0.52)
+    #expect(fluidFullDistance(displayWidth: 1_920, customDistance: nil) == 1_920 * 0.30)
   }
 
   @Test("custom full drag distance overrides display calibration")
@@ -45,9 +45,11 @@ struct FluidGesturePlanTests {
 
   @Test("a strong flick commits when projected momentum crosses halfway")
   func fastFlickCommits() {
+    // deltaX -260 is 26% of fullDistance (above 25% flick progress threshold).
+    // With 0.10s prediction: projected = -260 + (-2500 * 0.10) = -510 > 500.
     #expect(
       fluidReleaseOutcome(
-        deltaX: -45,
+        deltaX: -260,
         velocityX: -2_500,
         directionalCoherence: 0.95,
         fullDistance: 1_000
@@ -55,8 +57,45 @@ struct FluidGesturePlanTests {
         == .switchSpace(.left))
   }
 
+  @Test("a tiny fast flick does not commit when drag barely moved")
+  func tinyFlickDoesNotCommit() {
+    #expect(
+      fluidReleaseOutcome(
+        deltaX: -45,
+        velocityX: -2_500,
+        directionalCoherence: 0.95,
+        fullDistance: 1_000
+      )
+        == .rightClick)
+  }
+
+  @Test("slow drag with snap release does not false-trigger a switch")
+  func slowDragSnapReleaseDoesNotCommit() {
+    // Drag ~23% of fullDistance (below 25% flick progress threshold).
+    #expect(
+      fluidReleaseOutcome(
+        deltaX: -232,
+        velocityX: -2_007,
+        directionalCoherence: 1.0,
+        fullDistance: 998
+      )
+        == .rightClick)
+    // Drag ~31% (above 25% progress) with velocity 1809. With 0.10s
+    // prediction: projected = -313 - 180.9 = -493.9, just under commit
+    // distance 499. Not enough for a switch.
+    #expect(
+      fluidReleaseOutcome(
+        deltaX: -313,
+        velocityX: -1_809,
+        directionalCoherence: 1.0,
+        fullDistance: 998
+      )
+        == .rightClick)
+  }
+
   @Test("moderate velocity near the original Space does not false-trigger")
   func moderateReleaseNearOriginCancels() {
+    // deltaX -140 is 14% of fullDistance 998.4 — below the 25% flick threshold.
     #expect(
       fluidReleaseOutcome(
         deltaX: -140,
@@ -130,10 +169,10 @@ struct FluidGesturePlanTests {
   }
 
   @Test("faster releases use fewer settle frames")
-  func adaptiveSettleDuration() {
-    #expect(fluidSettleFrameCount(velocityX: 200) == 24)
-    #expect(fluidSettleFrameCount(velocityX: 1_200) == 18)
-    #expect(fluidSettleFrameCount(velocityX: 2_000) == 12)
+  func testSettleFrameCount() {
+    #expect(fluidSettleFrameCount(velocityX: 0) == 24)
+    #expect(fluidSettleFrameCount(velocityX: 1_000) == 20)
+    #expect(fluidSettleFrameCount(velocityX: 2_000) == 14)
   }
 
   @Test("cancel discards release momentum while commit preserves it")
@@ -149,8 +188,7 @@ struct FluidGesturePlanTests {
       fluidSettleProgresses(from: 0.5, to: 1.0, frameCount: 2, velocityX: 0)
         == [0.75, 1.0])
     #expect(
-      fluidSettleProgresses(from: 0.5, to: 1.0, frameCount: 2, velocityX: 1_200)
-        == [0.9375, 1.0])
+      fluidSettleProgresses(from: 0.5, to: 1.0, frameCount: 2, velocityX: 1_200) == [0.875, 1.0])
   }
 
   @Test("diagnostic progress logging is sampled independently of gesture frames")

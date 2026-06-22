@@ -20,7 +20,7 @@ struct Configuration {
   var threshold = 80.0
   var scrollScale = 1.0
   var fluidDistance: Double?
-  var showsOverlay = true
+  var showsOverlay = false
   var replayFile: String?
   var synthesisDirection: SyntheticSwipeDirection = .left
 

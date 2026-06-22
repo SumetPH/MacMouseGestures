@@ -42,12 +42,11 @@ final class GestureController {
   private var fluidFullDistanceValue = 800.0
   private var fluidStartPoint: CGPoint?
   private var lastFluidPostTimestamp: UInt64?
+  private var lastUpdateDeltaX: Double = 0.0
   private var fluidProgressLogLimiter = TimestampRateLimiter(
     intervalNanoseconds: 100_000_000
   )
   private var fluidMotionTracker = FluidMotionTracker()
-  private var settlingTask: Task<Void, Never>?
-  private var pendingFluidSettle: PendingFluidSettle?
 
   init(configuration: Configuration) {
     self.configuration = configuration
@@ -144,7 +143,6 @@ final class GestureController {
   }
 
   private func begin(at point: CGPoint, timestamp: UInt64) {
-    finalizePendingFluidSettle()
     tracker.begin(at: point)
     previousX = point.x
     scrollStarted = false
@@ -247,23 +245,27 @@ final class GestureController {
     let activationDistance = min(configuration.threshold, 6)
     guard fluidStarted || abs(update.deltaX) >= activationDistance else { return }
 
+    let screenWidth = displayWidth(containing: location)
+    let scaleH = 2.0 / (screenWidth + 63.0)
+    
     if !fluidStarted {
       _ = fluidPoster.post(phase: .mayBegin, progress: 0, location: location)
       _ = fluidPoster.post(phase: .began, progress: 0, location: location)
       fluidStarted = true
+      fluidProgressValue = 0
+      lastUpdateDeltaX = 0.0
       logger.write(
         "fluid_drag_began",
         [
           "gesture_id": lastGestureID!,
-          "full_distance": "\(fluidFullDistanceValue)",
-          "commit_distance": "\(fluidFullDistanceValue * 0.5)",
+          "display_width": "\(screenWidth)"
         ])
     }
 
-    fluidProgressValue = fluidProgress(
-      deltaX: Double(update.deltaX),
-      fullDistance: fluidFullDistanceValue
-    )
+    lastUpdateDeltaX = Double(update.deltaX)
+
+    fluidProgressValue = Double(update.deltaX) * scaleH * -1.0
+
     if !forcePost,
       let lastFluidPostTimestamp,
       timestamp >= lastFluidPostTimestamp,
@@ -272,14 +274,16 @@ final class GestureController {
       return
     }
     lastFluidPostTimestamp = timestamp
-    if let fields = fluidPoster.post(
+    
+    let posted = fluidPoster.post(
       phase: .changed,
       progress: fluidProgressValue,
       location: location
-    ), fluidProgressLogLimiter.shouldEmit(timestamp: timestamp, force: forcePost) {
+    )
+    if posted, fluidProgressLogLimiter.shouldEmit(timestamp: timestamp, force: forcePost) {
       logger.write(
         "fluid_drag_progress",
-        fields.merging(["gesture_id": lastGestureID!]) { current, _ in current })
+        ["progress": "\(fluidProgressValue)", "gesture_id": lastGestureID!])
     }
   }
 
@@ -300,74 +304,42 @@ final class GestureController {
     }
 
     fluidStarted = false
-    let target = fluidReleaseTarget(for: outcome)
-    let settleVelocity = fluidSettleVelocity(
-      for: outcome,
-      releaseVelocityX: motion.velocityX
-    )
-    let frameCount = fluidSettleFrameCount(velocityX: settleVelocity)
-    let progresses = fluidSettleProgresses(
-      from: fluidProgressValue,
-      to: target,
-      frameCount: frameCount,
-      velocityX: settleVelocity
-    )
-    let gestureID = lastGestureID!
-    let context = PendingFluidSettle(
-      location: location,
-      target: target,
-      gestureID: gestureID,
-      outcome: outcome,
-      motion: motion,
-      releaseDeltaX: releaseDeltaX
-    )
-    pendingFluidSettle = context
-    settlingTask = Task { @MainActor [weak self] in
-      guard let self else { return }
-      for progress in progresses {
-        guard !Task.isCancelled else { return }
-        _ = fluidPoster.post(phase: .changed, progress: progress, location: location)
-        try? await Task.sleep(for: .milliseconds(8))
-      }
-      guard !Task.isCancelled else { return }
-      guard pendingFluidSettle?.gestureID == gestureID else { return }
-      pendingFluidSettle = nil
-      settlingTask = nil
-      postFluidSettleEnd(context, interrupted: false)
+    
+    let screenWidth = displayWidth(containing: location)
+    let scaleH = 2.0 / (screenWidth + 63.0)
+    
+    // MMF uses: exitSpeed = _dockSwipeLastDelta * 100
+    // We approximate last frame's delta from velocity (points per second) / 60 frames per second
+    let lastFrameDeltaX = motion.velocityX / 60.0
+    let exitSpeed = lastFrameDeltaX * scaleH * -100.0
+    
+    // MMF logic: If direction of velocity is opposite to progress, cancel
+    // Note: fluidProgressValue is inverted (left drag = positive progress). 
+    // velocityX is positive when dragging right.
+    // So if velocityX > 0, we are dragging right (progress should be negative).
+    // If progress is positive (we dragged left overall), and velocityX > 0 (flicked right), they are opposite.
+    let isCancelled: Bool
+    if (motion.velocityX < -50 && fluidProgressValue < 0) || (motion.velocityX > 50 && fluidProgressValue > 0) {
+      isCancelled = true
+    } else {
+      isCancelled = abs(fluidProgressValue) < 0.5 && abs(motion.velocityX) < 200
     }
-  }
+    
+    let phase: FluidGesturePhase = isCancelled ? .cancelled : .ended
+    
+    _ = fluidPoster.post(phase: phase, progress: fluidProgressValue, velocity: exitSpeed, location: location)
 
-  private func finalizePendingFluidSettle() {
-    settlingTask?.cancel()
-    settlingTask = nil
-    guard let context = pendingFluidSettle else { return }
-    pendingFluidSettle = nil
-    postFluidSettleEnd(context, interrupted: true)
-  }
-
-  private func postFluidSettleEnd(_ context: PendingFluidSettle, interrupted: Bool) {
-    let projectedDeltaX = fluidProjectedDeltaX(
-      deltaX: context.releaseDeltaX,
-      velocityX: context.motion.velocityX
-    )
-    let fields = fluidPoster.post(
-      phase: .ended,
-      progress: context.target,
-      location: context.location
-    ) ?? [:]
     logger.write(
       "fluid_drag_ended",
-      fields.merging(
-        [
-          "gesture_id": context.gestureID,
-          "outcome": context.outcome.logName,
-          "release_velocity_x": "\(context.motion.velocityX)",
-          "release_delta_x": "\(context.releaseDeltaX)",
-          "projected_delta_x": "\(projectedDeltaX)",
-          "directional_coherence": "\(context.motion.directionalCoherence)",
-          "settle_interrupted": "\(interrupted)",
-        ]
-      ) { current, _ in current })
+      [
+        "gesture_id": lastGestureID!,
+        "outcome": isCancelled ? "cancelled" : "ended",
+        "release_velocity_x": "\(motion.velocityX)",
+        "release_delta_x": "\(releaseDeltaX)",
+        "exit_speed": "\(exitSpeed)",
+        "progress": "\(fluidProgressValue)"
+      ]
+    )
   }
 
   private func displayWidth(containing point: CGPoint) -> Double {

@@ -3,6 +3,7 @@ public enum FluidGesturePhase: Equatable, Sendable {
   case began
   case changed
   case ended
+  case cancelled
 }
 
 public struct FluidGestureStep: Equatable, Sendable {
@@ -123,15 +124,17 @@ public func fluidProgress(deltaX: Double, fullDistance: Double) -> Double {
   return min(max(target, -4.0 / 3.0), 4.0 / 3.0)
 }
 
-/// Calibrated from the working BetterMouse capture: one completed transition
-/// consumed approximately 52% of the width of the display receiving the gesture.
+/// Calibrated for a lighter, more responsive feel: one completed transition
+/// consumes approximately 30% of the width of the display receiving the gesture.
+/// This maps to ~576 points on a 1920pt display (close to the preferred 600),
+/// and ~405 points on a 1352pt MacBook Pro display.
 public func fluidFullDistance(displayWidth: Double, customDistance: Double?) -> Double {
   precondition(displayWidth > 0)
   if let customDistance {
     precondition(customDistance > 0)
     return customDistance
   }
-  return displayWidth * 0.52
+  return displayWidth * 0.30
 }
 
 public func fluidReleaseTarget(for outcome: GestureOutcome) -> Double {
@@ -150,15 +153,18 @@ public func fluidReleaseOutcome(
   minimumFlickDistance: Double = 30,
   flickVelocityThreshold: Double = 900,
   minimumFlickCoherence: Double = 0.75,
-  momentumPredictionDuration: Double = 0.20
+  momentumPredictionDuration: Double = 0.10,
+  minimumFlickProgress: Double = 0.25
 ) -> GestureOutcome {
   precondition(fullDistance > 0)
   precondition(minimumFlickDistance >= 0)
   precondition(flickVelocityThreshold > 0)
   precondition((0...1).contains(minimumFlickCoherence))
   precondition(momentumPredictionDuration >= 0)
+  precondition(minimumFlickProgress >= 0)
 
-  let commitsByDistance = abs(deltaX) >= fullDistance * 0.5
+  let commitDistance = fullDistance * 0.5
+  let commitsByDistance = abs(deltaX) >= commitDistance
   let qualifiesForMomentum =
     abs(deltaX) >= minimumFlickDistance
     && abs(velocityX) >= flickVelocityThreshold
@@ -169,7 +175,13 @@ public func fluidReleaseOutcome(
     velocityX: velocityX,
     predictionDuration: momentumPredictionDuration
   )
-  let commitsByFlick = qualifiesForMomentum && abs(projectedDeltaX) >= fullDistance * 0.5
+  // For momentum/flick commits, require the user to have dragged at least
+  // minimumFlickProgress of the full transition distance. This prevents
+  // slow drags with snap releases from triggering switches — the velocity
+  // spike on release looks like a flick but the drag barely moved.
+  let meetsFlickProgress = abs(deltaX) >= fullDistance * minimumFlickProgress
+  let commitsByFlick = qualifiesForMomentum && meetsFlickProgress
+    && abs(projectedDeltaX) >= commitDistance
   guard commitsByDistance || commitsByFlick else { return .rightClick }
   return .switchSpace(deltaX < 0 ? .left : .right)
 }
@@ -185,8 +197,8 @@ public func fluidProjectedDeltaX(
 
 public func fluidSettleFrameCount(velocityX: Double) -> Int {
   switch abs(velocityX) {
-  case 1_800...: 12
-  case 900...: 18
+  case 1_800...: 14
+  case 900...: 20
   default: 24
   }
 }
@@ -213,7 +225,9 @@ public func fluidSettleProgresses(
     let interpolation: Double
     if abs(velocityX) >= 900 {
       let remaining = 1 - time
-      interpolation = 1 - remaining * remaining * remaining
+      // Quadratic ease-out to prevent an overly aggressive initial jump
+      // which makes fast flicks feel "too fast" and jumpy on 4K 120Hz displays.
+      interpolation = 1 - remaining * remaining
     } else {
       interpolation = time * time * (3 - 2 * time)
     }

@@ -20,7 +20,7 @@ final class PrivateFluidGestureProbe {
     try await Task.sleep(for: .seconds(2))
 
     for (index, step) in plan.enumerated() {
-      guard let fields = poster.post(phase: step.phase, progress: step.progress, location: point)
+      guard poster.post(phase: step.phase, progress: step.progress, location: point)
       else {
         throw FluidSynthesisError.eventCreationFailed(index)
       }
@@ -28,9 +28,8 @@ final class PrivateFluidGestureProbe {
       if index == 0 || index == 1 || index + 1 == plan.count {
         logger.write(
           "fluid_synthesis_posted",
-          fields.merging([
-            "index": "\(index)"
-          ]) { current, _ in current })
+          ["index": "\(index)"]
+        )
       }
 
       if index + 1 < plan.count {
