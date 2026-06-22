@@ -25,6 +25,17 @@ swift build
 .build/debug/spaces-gesture-probe --mode probe
 ```
 
+To build a launchable app bundle instead, run:
+
+```bash
+./scripts/build-app.sh
+open ".build/app/Mac Mouse Gesture.app"
+```
+
+The script builds the release configuration by default. Pass `debug` as its
+first argument for a debug bundle. It ad-hoc signs the app locally; set
+`CODE_SIGN_IDENTITY` when a specific signing identity is required.
+
 On first run, allow the executable or Terminal in **System Settings > Privacy &
 Security > Accessibility**, then launch it again. Right-button clicks without a
 qualifying horizontal drag are replayed as normal clicks.
