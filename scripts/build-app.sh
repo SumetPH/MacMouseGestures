@@ -16,14 +16,35 @@ product_name="Mac Mouse Gesture"
 executable_name="mac-mouse-gesture"
 app_dir="$project_root/.build/app/$product_name.app"
 contents_dir="$app_dir/Contents"
+icon_source="$project_root/Assets/AppIcon.png"
+iconset_dir="$project_root/.build/app/AppIcon.iconset"
 
 cd "$project_root"
 swift build --configuration "$configuration" --product "$executable_name"
 bin_dir="$(swift build --configuration "$configuration" --show-bin-path)"
 
-rm -rf "$app_dir"
-mkdir -p "$contents_dir/MacOS" "$contents_dir/Resources"
+rm -rf "$app_dir" "$iconset_dir"
+mkdir -p "$contents_dir/MacOS" "$contents_dir/Resources" "$iconset_dir"
 cp "$bin_dir/$executable_name" "$contents_dir/MacOS/$executable_name"
+
+create_icon() {
+  local size="$1"
+  local filename="$2"
+  sips -z "$size" "$size" "$icon_source" --out "$iconset_dir/$filename" >/dev/null
+}
+
+create_icon 16 icon_16x16.png
+create_icon 32 icon_16x16@2x.png
+create_icon 32 icon_32x32.png
+create_icon 64 icon_32x32@2x.png
+create_icon 128 icon_128x128.png
+create_icon 256 icon_128x128@2x.png
+create_icon 256 icon_256x256.png
+create_icon 512 icon_256x256@2x.png
+create_icon 512 icon_512x512.png
+create_icon 1024 icon_512x512@2x.png
+iconutil --convert icns "$iconset_dir" --output "$contents_dir/Resources/AppIcon.icns"
+rm -rf "$iconset_dir"
 
 cat > "$contents_dir/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -36,6 +57,8 @@ cat > "$contents_dir/Info.plist" <<'PLIST'
   <string>mac-mouse-gesture</string>
   <key>CFBundleIdentifier</key>
   <string>dev.sumetph.MacMouseGesture</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon.icns</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundleName</key>
