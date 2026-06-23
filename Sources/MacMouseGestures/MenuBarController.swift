@@ -8,7 +8,7 @@ final class MenuBarController: NSObject {
   private var eventMonitors: [Any] = []
 
   init(settings: AppSettings) {
-    let contentSize = NSSize(width: 300, height: 270)
+    let contentSize = NSSize(width: 300, height: 300)
     panel = MenuBarPanel(
       contentRect: NSRect(origin: .zero, size: contentSize),
       styleMask: [.borderless, .nonactivatingPanel],
@@ -132,6 +132,16 @@ private struct MenuBarView: View {
           .toggleStyle(.switch)
           .controlSize(.small)
           .accessibilityLabel("Enable Mac Mouse Gestures")
+      }
+
+      HStack {
+        Text("Launch at Login")
+        Spacer()
+        Toggle("Launch at Login", isOn: $settings.launchAtLogin)
+          .labelsHidden()
+          .toggleStyle(.switch)
+          .controlSize(.small)
+          .accessibilityLabel("Launch at login")
       }
 
       Divider()
