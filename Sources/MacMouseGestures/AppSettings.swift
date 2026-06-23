@@ -8,12 +8,14 @@ final class AppSettings: ObservableObject {
     let isEnabled: Bool
     let scrollSpeed: Double
     let scrollSmoothness: Double
+    let dynamicAccelerationEnabled: Bool
   }
 
   private enum Key {
     static let isEnabled = "isEnabled"
     static let scrollSpeed = "scrollSpeed"
     static let scrollSmoothness = "scrollSmoothness"
+    static let dynamicAccelerationEnabled = "dynamicAccelerationEnabled"
   }
 
   static let defaultScrollSpeed = 1.0
@@ -28,6 +30,9 @@ final class AppSettings: ObservableObject {
     didSet { saveAndNotify() }
   }
   @Published var scrollSmoothness: Double {
+    didSet { saveAndNotify() }
+  }
+  @Published var dynamicAccelerationEnabled: Bool {
     didSet { saveAndNotify() }
   }
   @Published var launchAtLogin: Bool {
@@ -53,6 +58,7 @@ final class AppSettings: ObservableObject {
       defaultValue: Self.defaultScrollSmoothness,
       range: Self.scrollSmoothnessRange
     )
+    dynamicAccelerationEnabled = defaults.object(forKey: Key.dynamicAccelerationEnabled) as? Bool ?? true
     launchAtLogin = SMAppService.mainApp.status == .enabled
   }
 
@@ -60,19 +66,22 @@ final class AppSettings: ObservableObject {
     Values(
       isEnabled: isEnabled,
       scrollSpeed: scrollSpeed,
-      scrollSmoothness: scrollSmoothness
+      scrollSmoothness: scrollSmoothness,
+      dynamicAccelerationEnabled: dynamicAccelerationEnabled
     )
   }
 
   func resetScrolling() {
     scrollSpeed = Self.defaultScrollSpeed
     scrollSmoothness = Self.defaultScrollSmoothness
+    dynamicAccelerationEnabled = true
   }
 
   private func saveAndNotify() {
     defaults.set(isEnabled, forKey: Key.isEnabled)
     defaults.set(scrollSpeed, forKey: Key.scrollSpeed)
     defaults.set(scrollSmoothness, forKey: Key.scrollSmoothness)
+    defaults.set(dynamicAccelerationEnabled, forKey: Key.dynamicAccelerationEnabled)
     onChange?(values)
   }
 

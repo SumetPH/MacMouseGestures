@@ -34,6 +34,9 @@ final class ScrollController: @unchecked Sendable {
   private var currentDisplayScale = 1.0
   private var speedMultiplier = 1.0
   private var smoothnessMultiplier = 1.0
+  private var dynamicAccelerationEnabled = true
+  private var rapidScrollTickCount = 0
+  private var lastEventTimestamp: Double = 0.0
   
   // Hybrid curve parameters
   private var transitionTime: Double = 0
@@ -52,9 +55,10 @@ final class ScrollController: @unchecked Sendable {
     case right = 4
   }
 
-  func updateConfiguration(speed: Double, smoothness: Double) {
+  func updateConfiguration(speed: Double, smoothness: Double, dynamicAccelerationEnabled: Bool) {
     speedMultiplier = speed
     smoothnessMultiplier = smoothness
+    self.dynamicAccelerationEnabled = dynamicAccelerationEnabled
   }
 
   func setEnabled(_ enabled: Bool) {
@@ -114,8 +118,30 @@ final class ScrollController: @unchecked Sendable {
     let ts = Double(event.timestamp) / 1_000_000_000.0
     
     lock.lock()
+    let secondsSinceLastEvent = lastEventTimestamp > 0 ? max(ts - lastEventTimestamp, 0.0001) : 0.16
+    lastEventTimestamp = ts
+    
     let analysis = updateAnalyzer(timestamp: ts, direction: rawDirection)
     let running = isRunning
+    
+    if analysis.scrollDirectionDidChange {
+      rapidScrollTickCount = 0
+    }
+    
+    if dynamicAccelerationEnabled {
+      let thresholdInterval = 0.10 // Less than 100ms between events is fast scrolling
+      if secondsSinceLastEvent < thresholdInterval {
+        rapidScrollTickCount = min(rapidScrollTickCount + 1, 80)
+      } else if secondsSinceLastEvent >= 0.15 {
+        // If they pause for more than 150ms, reset the counter to 0 immediately
+        rapidScrollTickCount = 0
+      } else {
+        let decayAmount = Int((secondsSinceLastEvent / thresholdInterval) * 15.0)
+        rapidScrollTickCount = max(rapidScrollTickCount - decayAmount, 0)
+      }
+    } else {
+      rapidScrollTickCount = 0
+    }
     lock.unlock()
 
     let startsNewSwipeSequence = analysis.consecutiveScrollTickCounter == 0
@@ -158,6 +184,18 @@ final class ScrollController: @unchecked Sendable {
       speedupFactor = min(a * pow(b, (swipeNumber - 3.0) * c) + (1.0 - a), 100_000)
     }
     pxToScroll *= speedupFactor
+    
+    lock.lock()
+    if dynamicAccelerationEnabled {
+      let activationThreshold = 30 // Approx 1.5 rounds of standard scroll wheel
+      if rapidScrollTickCount > activationThreshold {
+        let excessTicks = rapidScrollTickCount - activationThreshold
+        let continuousFactor = 1.0 + Double(excessTicks) * 0.05
+        pxToScroll *= continuousFactor
+      }
+    }
+    lock.unlock()
+    
     if analysis.scrollDirectionDidChange && running {
       stopAnimation()
     }
@@ -268,6 +306,8 @@ final class ScrollController: @unchecked Sendable {
     consecutiveScrollSwipeCounter = 0
     ticksInCurrentConsecutiveSwipeSequence = 0
     consecutiveSwipeSequenceStartTime = -1
+    lastEventTimestamp = 0.0
+    rapidScrollTickCount = 0
   }
   
   private func resetSwipes() {
@@ -363,6 +403,8 @@ final class ScrollController: @unchecked Sendable {
     lock.lock()
     let wasRunning = isRunning
     isRunning = false
+    rapidScrollTickCount = 0
+    lastEventTimestamp = 0.0
     lock.unlock()
     if wasRunning {
       displayLink.stop()
@@ -395,6 +437,8 @@ final class ScrollController: @unchecked Sendable {
     if t >= totalDuration {
       progress = 1.0
       isRunning = false
+      rapidScrollTickCount = 0
+      lastEventTimestamp = 0.0
       let displayLink = displayLink
       DispatchQueue.main.async {
         displayLink.stop()

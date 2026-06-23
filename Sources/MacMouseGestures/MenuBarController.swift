@@ -163,6 +163,16 @@ private struct MenuBarView: View {
       )
 
       HStack {
+        Text("Scroll Acceleration")
+        Spacer()
+        Toggle("Scroll Acceleration", isOn: $settings.dynamicAccelerationEnabled)
+          .labelsHidden()
+          .toggleStyle(.switch)
+          .controlSize(.small)
+          .accessibilityLabel("Scroll acceleration")
+      }
+
+      HStack {
         Button("Reset", systemImage: "arrow.counterclockwise") {
           settings.resetScrolling()
         }
