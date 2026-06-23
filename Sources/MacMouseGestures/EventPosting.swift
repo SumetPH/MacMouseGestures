@@ -68,6 +68,7 @@ enum InputPoster {
     dyLineInt: Int,
     dxLineFixed: Int64,
     dyLineFixed: Int64,
+    flags: CGEventFlags,
     mode: ScrollEventPostingMode
   ) {
     switch mode {
@@ -78,10 +79,11 @@ enum InputPoster {
         dxLineInt: dxLineInt,
         dyLineInt: dyLineInt,
         dxLineFixed: dxLineFixed,
-        dyLineFixed: dyLineFixed
+        dyLineFixed: dyLineFixed,
+        flags: flags
       )
     case .eventSourcePixels:
-      postEventSourcePixelScrollEvent(dx: dx, dy: dy)
+      postEventSourcePixelScrollEvent(dx: dx, dy: dy, flags: flags)
     }
   }
 
@@ -91,13 +93,15 @@ enum InputPoster {
     dxLineInt: Int,
     dyLineInt: Int,
     dxLineFixed: Int64,
-    dyLineFixed: Int64
+    dyLineFixed: Int64,
+    flags: CGEventFlags
   ) {
     guard let event = CGEvent(source: nil) else { return }
     
     event.setIntegerValueField(CGEventField(rawValue: 55)!, value: Int64(CGEventType.scrollWheel.rawValue))
     event.setIntegerValueField(.eventSourceUserData, value: syntheticMarker)
     event.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)
+    event.flags = flags
     
     event.setIntegerValueField(.scrollWheelEventDeltaAxis1, value: Int64(dyLineInt))
     event.setIntegerValueField(.scrollWheelEventPointDeltaAxis1, value: Int64(dy))
@@ -110,7 +114,7 @@ enum InputPoster {
     event.post(tap: .cgSessionEventTap)
   }
 
-  private static func postEventSourcePixelScrollEvent(dx: Int, dy: Int) {
+  private static func postEventSourcePixelScrollEvent(dx: Int, dy: Int, flags: CGEventFlags) {
     let source = CGEventSource(stateID: .privateState)
     source?.pixelsPerLine = defaultPixelsPerLine
     guard let event = CGEvent(
@@ -124,6 +128,7 @@ enum InputPoster {
 
     event.setIntegerValueField(.eventSourceUserData, value: syntheticMarker)
     event.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)
+    event.flags = flags
     event.post(tap: .cgSessionEventTap)
   }
 }

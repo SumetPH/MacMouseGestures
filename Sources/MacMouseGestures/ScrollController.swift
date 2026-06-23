@@ -38,6 +38,7 @@ final class ScrollController: @unchecked Sendable {
   private var eventPostingMode: ScrollEventPostingMode = .fieldValues
   private var rapidScrollTickCount = 0
   private var lastEventTimestamp: Double = 0.0
+  private var activeScrollFlags: CGEventFlags = []
   
   // Hybrid curve parameters
   private var transitionTime: Double = 0
@@ -109,6 +110,7 @@ final class ScrollController: @unchecked Sendable {
     // Shift+Scroll: redirect vertical scroll to horizontal
     let flags = event.flags
     let isShiftHeld = flags.contains(.maskShift)
+    let scrollFlags = flags.intersection([.maskCommand, .maskAlternate, .maskControl])
 
     let rawDirection: ScrollDirection
     if isShiftHeld && scrollDeltaAxis1 != 0 {
@@ -125,6 +127,7 @@ final class ScrollController: @unchecked Sendable {
     let ts = Double(event.timestamp) / 1_000_000_000.0
     
     lock.lock()
+    activeScrollFlags = scrollFlags
     let secondsSinceLastEvent = lastEventTimestamp > 0 ? max(ts - lastEventTimestamp, 0.0001) : 0.16
     lastEventTimestamp = ts
     
@@ -495,6 +498,7 @@ final class ScrollController: @unchecked Sendable {
     var dyLineFixed: Int64 = 0
     var dxLineInt = 0
     var dxLineFixed: Int64 = 0
+    let scrollFlags = activeScrollFlags
     
     if dyToPost != 0 {
       dyLineInt = lineQuantizerY.quantize(Double(dyToPost) / 10.0)
@@ -517,6 +521,7 @@ final class ScrollController: @unchecked Sendable {
         dyLineInt: dyLineInt,
         dxLineFixed: dxLineFixed,
         dyLineFixed: dyLineFixed,
+        flags: scrollFlags,
         mode: eventPostingMode
       )
     }
