@@ -20,11 +20,10 @@ final class MenuBarController: NSObject {
     super.init()
 
     if let button = statusItem.button {
-      let config = NSImage.SymbolConfiguration(pointSize: 15, weight: .regular)
       let image = NSImage(
         systemSymbolName: "computermouse",
         accessibilityDescription: "Mac Mouse Gestures"
-      )?.withSymbolConfiguration(config)
+      )
       image?.isTemplate = true
       button.image = image
       button.toolTip = "Mac Mouse Gestures"
