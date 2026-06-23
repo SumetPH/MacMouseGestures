@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import GestureCore
 import ServiceManagement
 
 @MainActor
@@ -9,6 +10,7 @@ final class AppSettings: ObservableObject {
     let scrollSpeed: Double
     let scrollSmoothness: Double
     let dynamicAccelerationEnabled: Bool
+    let scrollEventPostingMode: ScrollEventPostingMode
   }
 
   private enum Key {
@@ -16,12 +18,14 @@ final class AppSettings: ObservableObject {
     static let scrollSpeed = "scrollSpeed"
     static let scrollSmoothness = "scrollSmoothness"
     static let dynamicAccelerationEnabled = "dynamicAccelerationEnabled"
+    static let scrollEventPostingMode = "scrollEventPostingMode"
   }
 
   static let defaultScrollSpeed = 1.0
   static let defaultScrollSmoothness = 1.0
   static let scrollSpeedRange = 0.5...2.0
   static let scrollSmoothnessRange = 0.75...1.5
+  static let customScrollPresetID = "custom"
 
   @Published var isEnabled: Bool {
     didSet { saveAndNotify() }
@@ -33,6 +37,9 @@ final class AppSettings: ObservableObject {
     didSet { saveAndNotify() }
   }
   @Published var dynamicAccelerationEnabled: Bool {
+    didSet { saveAndNotify() }
+  }
+  @Published var scrollEventPostingMode: ScrollEventPostingMode {
     didSet { saveAndNotify() }
   }
   @Published var launchAtLogin: Bool {
@@ -59,6 +66,7 @@ final class AppSettings: ObservableObject {
       range: Self.scrollSmoothnessRange
     )
     dynamicAccelerationEnabled = defaults.object(forKey: Key.dynamicAccelerationEnabled) as? Bool ?? true
+    scrollEventPostingMode = Self.loadScrollEventPostingMode(from: defaults)
     launchAtLogin = SMAppService.mainApp.status == .enabled
   }
 
@@ -67,14 +75,33 @@ final class AppSettings: ObservableObject {
       isEnabled: isEnabled,
       scrollSpeed: scrollSpeed,
       scrollSmoothness: scrollSmoothness,
+      dynamicAccelerationEnabled: dynamicAccelerationEnabled,
+      scrollEventPostingMode: scrollEventPostingMode
+    )
+  }
+
+  var selectedScrollPreset: ScrollPreset? {
+    ScrollPreset.matching(
+      speedMultiplier: scrollSpeed,
+      smoothnessMultiplier: scrollSmoothness,
       dynamicAccelerationEnabled: dynamicAccelerationEnabled
     )
   }
 
+  var scrollPresetSelectionID: String {
+    selectedScrollPreset?.id ?? Self.customScrollPresetID
+  }
+
+  func applyScrollPreset(_ preset: ScrollPreset) {
+    let configuration = preset.configuration
+    scrollSpeed = configuration.speedMultiplier
+    scrollSmoothness = configuration.smoothnessMultiplier
+    dynamicAccelerationEnabled = configuration.dynamicAccelerationEnabled
+  }
+
   func resetScrolling() {
-    scrollSpeed = Self.defaultScrollSpeed
-    scrollSmoothness = Self.defaultScrollSmoothness
-    dynamicAccelerationEnabled = true
+    applyScrollPreset(.balanced120)
+    scrollEventPostingMode = .fieldValues
   }
 
   private func saveAndNotify() {
@@ -82,6 +109,7 @@ final class AppSettings: ObservableObject {
     defaults.set(scrollSpeed, forKey: Key.scrollSpeed)
     defaults.set(scrollSmoothness, forKey: Key.scrollSmoothness)
     defaults.set(dynamicAccelerationEnabled, forKey: Key.dynamicAccelerationEnabled)
+    defaults.set(scrollEventPostingMode.rawValue, forKey: Key.scrollEventPostingMode)
     onChange?(values)
   }
 
@@ -114,5 +142,12 @@ final class AppSettings: ObservableObject {
   ) -> Double {
     guard defaults.object(forKey: key) != nil else { return defaultValue }
     return min(max(defaults.double(forKey: key), range.lowerBound), range.upperBound)
+  }
+
+  private static func loadScrollEventPostingMode(from defaults: UserDefaults) -> ScrollEventPostingMode {
+    guard let rawValue = defaults.string(forKey: Key.scrollEventPostingMode),
+      let mode = ScrollEventPostingMode(rawValue: rawValue)
+    else { return .fieldValues }
+    return mode
   }
 }

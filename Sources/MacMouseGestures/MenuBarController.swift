@@ -1,4 +1,5 @@
 import AppKit
+import GestureCore
 import SwiftUI
 
 @MainActor
@@ -149,6 +150,35 @@ private struct MenuBarView: View {
       Text("Scrolling")
         .font(.subheadline.weight(.semibold))
 
+      VStack(alignment: .leading, spacing: 6) {
+        Text("Preset")
+        Picker(
+          "Scroll preset",
+          selection: Binding(
+            get: { settings.scrollPresetSelectionID },
+            set: { id in
+              guard id != AppSettings.customScrollPresetID,
+                let preset = ScrollPreset(rawValue: id)
+              else { return }
+              settings.applyScrollPreset(preset)
+            }
+          )
+        ) {
+          ForEach(ScrollPreset.allCases) { preset in
+            Text(preset.displayName).tag(preset.id)
+          }
+          Text("Custom").tag(AppSettings.customScrollPresetID)
+        }
+        .labelsHidden()
+        .pickerStyle(.menu)
+        .accessibilityLabel("Scroll preset")
+
+        Text(settings.selectedScrollPreset?.detail ?? "Manual speed, smoothness, or acceleration values.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
       settingSlider(
         title: "Speed",
         value: $settings.scrollSpeed,
@@ -170,6 +200,23 @@ private struct MenuBarView: View {
           .toggleStyle(.switch)
           .controlSize(.small)
           .accessibilityLabel("Scroll acceleration")
+      }
+
+      VStack(alignment: .leading, spacing: 6) {
+        Text("Posting")
+        Picker("Scroll event posting", selection: $settings.scrollEventPostingMode) {
+          ForEach(ScrollEventPostingMode.allCases, id: \.self) { mode in
+            Text(mode.displayName).tag(mode)
+          }
+        }
+        .labelsHidden()
+        .pickerStyle(.segmented)
+        .accessibilityLabel("Scroll event posting")
+
+        Text(settings.scrollEventPostingMode.detail)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
       }
 
       HStack {

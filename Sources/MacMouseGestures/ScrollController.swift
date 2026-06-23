@@ -35,6 +35,7 @@ final class ScrollController: @unchecked Sendable {
   private var speedMultiplier = 1.0
   private var smoothnessMultiplier = 1.0
   private var dynamicAccelerationEnabled = true
+  private var eventPostingMode: ScrollEventPostingMode = .fieldValues
   private var rapidScrollTickCount = 0
   private var lastEventTimestamp: Double = 0.0
   
@@ -55,10 +56,16 @@ final class ScrollController: @unchecked Sendable {
     case right = 4
   }
 
-  func updateConfiguration(speed: Double, smoothness: Double, dynamicAccelerationEnabled: Bool) {
+  func updateConfiguration(
+    speed: Double,
+    smoothness: Double,
+    dynamicAccelerationEnabled: Bool,
+    eventPostingMode: ScrollEventPostingMode
+  ) {
     speedMultiplier = speed
     smoothnessMultiplier = smoothness
     self.dynamicAccelerationEnabled = dynamicAccelerationEnabled
+    self.eventPostingMode = eventPostingMode
   }
 
   func setEnabled(_ enabled: Bool) {
@@ -509,7 +516,8 @@ final class ScrollController: @unchecked Sendable {
         dxLineInt: dxLineInt,
         dyLineInt: dyLineInt,
         dxLineFixed: dxLineFixed,
-        dyLineFixed: dyLineFixed
+        dyLineFixed: dyLineFixed,
+        mode: eventPostingMode
       )
     }
   }

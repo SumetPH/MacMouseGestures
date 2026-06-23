@@ -53,7 +53,8 @@ final class GestureController {
     scrollController.updateConfiguration(
       speed: settings.scrollSpeed,
       smoothness: settings.scrollSmoothness,
-      dynamicAccelerationEnabled: settings.dynamicAccelerationEnabled
+      dynamicAccelerationEnabled: settings.dynamicAccelerationEnabled,
+      eventPostingMode: settings.scrollEventPostingMode
     )
   }
 

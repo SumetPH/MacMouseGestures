@@ -6,6 +6,7 @@ import Foundation
 private func CoreDockSendNotification(_ name: CFString, _ unknown: Int)
 
 private let syntheticMarker: Int64 = 0x5350_4143_4553
+private let defaultPixelsPerLine = 10.0
 
 enum InputPoster {
   static func rightClick(at point: CGPoint) {
@@ -66,6 +67,30 @@ enum InputPoster {
     dxLineInt: Int,
     dyLineInt: Int,
     dxLineFixed: Int64,
+    dyLineFixed: Int64,
+    mode: ScrollEventPostingMode
+  ) {
+    switch mode {
+    case .fieldValues:
+      postFieldValueScrollEvent(
+        dx: dx,
+        dy: dy,
+        dxLineInt: dxLineInt,
+        dyLineInt: dyLineInt,
+        dxLineFixed: dxLineFixed,
+        dyLineFixed: dyLineFixed
+      )
+    case .eventSourcePixels:
+      postEventSourcePixelScrollEvent(dx: dx, dy: dy)
+    }
+  }
+
+  private static func postFieldValueScrollEvent(
+    dx: Int,
+    dy: Int,
+    dxLineInt: Int,
+    dyLineInt: Int,
+    dxLineFixed: Int64,
     dyLineFixed: Int64
   ) {
     guard let event = CGEvent(source: nil) else { return }
@@ -82,6 +107,23 @@ enum InputPoster {
     event.setIntegerValueField(.scrollWheelEventPointDeltaAxis2, value: Int64(dx))
     event.setIntegerValueField(.scrollWheelEventFixedPtDeltaAxis2, value: dxLineFixed)
     
+    event.post(tap: .cgSessionEventTap)
+  }
+
+  private static func postEventSourcePixelScrollEvent(dx: Int, dy: Int) {
+    let source = CGEventSource(stateID: .privateState)
+    source?.pixelsPerLine = defaultPixelsPerLine
+    guard let event = CGEvent(
+      scrollWheelEvent2Source: source,
+      units: .pixel,
+      wheelCount: 2,
+      wheel1: Int32(dy),
+      wheel2: Int32(dx),
+      wheel3: 0
+    ) else { return }
+
+    event.setIntegerValueField(.eventSourceUserData, value: syntheticMarker)
+    event.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)
     event.post(tap: .cgSessionEventTap)
   }
 }
