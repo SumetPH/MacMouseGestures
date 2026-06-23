@@ -157,7 +157,6 @@ private struct MenuBarView: View {
         }
         .buttonStyle(.borderless)
         .font(.caption)
-        .foregroundStyle(.red)
       }
     }
     .padding(16)
