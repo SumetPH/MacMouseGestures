@@ -68,9 +68,16 @@ final class MenuBarController: NSObject {
     panel.orderFrontRegardless()
     panel.makeKey()
     installEventMonitors()
+
+    DispatchQueue.main.async {
+      sender.isHighlighted = true
+    }
   }
 
   private func closePanel() {
+    DispatchQueue.main.async {
+      self.statusItem.button?.isHighlighted = false
+    }
     panel.orderOut(nil)
     removeEventMonitors()
   }
