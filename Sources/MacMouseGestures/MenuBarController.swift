@@ -1,5 +1,4 @@
 import AppKit
-import GestureCore
 import SwiftUI
 
 @MainActor
@@ -9,7 +8,7 @@ final class MenuBarController: NSObject {
   private var eventMonitors: [Any] = []
 
   init(settings: AppSettings) {
-    let contentSize = NSSize(width: 300, height: 320)
+    let contentSize = NSSize(width: 300, height: 110)
     panel = MenuBarPanel(
       contentRect: NSRect(origin: .zero, size: contentSize),
       styleMask: [.borderless, .nonactivatingPanel],
@@ -144,92 +143,6 @@ private struct MenuBarView: View {
       Divider()
 
       HStack {
-        Text("Scrolling")
-          .font(.subheadline.weight(.semibold))
-        Spacer()
-        Toggle("Scrolling", isOn: $settings.scrollingEnabled)
-          .labelsHidden()
-          .toggleStyle(.switch)
-          .controlSize(.small)
-          .accessibilityLabel("Enable scrolling")
-      }
-
-      VStack(alignment: .leading, spacing: 6) {
-        Text("Preset")
-        Picker(
-          "Scroll preset",
-          selection: Binding(
-            get: { settings.scrollPresetSelectionID },
-            set: { id in
-              guard id != AppSettings.customScrollPresetID,
-                let preset = ScrollPreset(rawValue: id)
-              else { return }
-              settings.applyScrollPreset(preset)
-            }
-          )
-        ) {
-          ForEach(ScrollPreset.allCases) { preset in
-            Text(preset.displayName).tag(preset.id)
-          }
-          Text("Custom").tag(AppSettings.customScrollPresetID)
-        }
-        .labelsHidden()
-        .pickerStyle(.menu)
-        .accessibilityLabel("Scroll preset")
-
-        Text(settings.selectedScrollPreset?.detail ?? "Manual speed, smoothness, or acceleration values.")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-          .fixedSize(horizontal: false, vertical: true)
-      }
-      .disabled(!settings.scrollingEnabled)
-
-      settingSlider(
-        title: "Speed",
-        value: $settings.scrollSpeed,
-        range: AppSettings.scrollSpeedRange,
-        accessibilityLabel: "Scroll speed"
-      )
-      .disabled(!settings.scrollingEnabled)
-
-      settingSlider(
-        title: "Smoothness",
-        value: $settings.scrollSmoothness,
-        range: AppSettings.scrollSmoothnessRange,
-        accessibilityLabel: "Scroll smoothness"
-      )
-      .disabled(!settings.scrollingEnabled)
-
-      HStack {
-        Text("Scroll Acceleration")
-        Spacer()
-        Toggle("Scroll Acceleration", isOn: $settings.dynamicAccelerationEnabled)
-          .labelsHidden()
-          .toggleStyle(.switch)
-          .controlSize(.small)
-          .accessibilityLabel("Scroll acceleration")
-      }
-      .disabled(!settings.scrollingEnabled)
-
-      VStack(alignment: .leading, spacing: 6) {
-        Text("Posting")
-        Picker("Scroll event posting", selection: $settings.scrollEventPostingMode) {
-          ForEach(ScrollEventPostingMode.allCases, id: \.self) { mode in
-            Text(mode.displayName).tag(mode)
-          }
-        }
-        .labelsHidden()
-        .pickerStyle(.segmented)
-        .accessibilityLabel("Scroll event posting")
-
-        Text(settings.scrollEventPostingMode.detail)
-          .font(.caption)
-          .foregroundStyle(.secondary)
-          .fixedSize(horizontal: false, vertical: true)
-      }
-      .disabled(!settings.scrollingEnabled)
-
-      HStack {
         Toggle("Launch at Login", isOn: $settings.launchAtLogin)
           .toggleStyle(.checkbox)
           .font(.caption)
@@ -238,16 +151,6 @@ private struct MenuBarView: View {
           .accessibilityLabel("Launch at login")
 
         Spacer()
-
-        Button("Reset", systemImage: "arrow.counterclockwise") {
-          settings.resetScrolling()
-        }
-        .buttonStyle(.borderless)
-        .font(.caption)
-        .disabled(!settings.scrollingEnabled)
-
-        Spacer()
-          .frame(width: 12)
 
         Button("Quit", systemImage: "power") {
           NSApplication.shared.terminate(nil)
@@ -259,27 +162,5 @@ private struct MenuBarView: View {
     }
     .padding(16)
     .frame(width: 300)
-  }
-
-  private func settingSlider(
-    title: String,
-    value: Binding<Double>,
-    range: ClosedRange<Double>,
-    accessibilityLabel: String
-  ) -> some View {
-    VStack(spacing: 6) {
-      HStack {
-        Text(title)
-        Spacer()
-        Text(value.wrappedValue, format: .number.precision(.fractionLength(2)))
-          .monospacedDigit()
-          .foregroundStyle(.secondary)
-      }
-      Slider(value: value, in: range, step: 0.05)
-        .accessibilityLabel(accessibilityLabel)
-        .accessibilityValue(
-          Text(value.wrappedValue, format: .number.precision(.fractionLength(2)))
-        )
-    }
   }
 }

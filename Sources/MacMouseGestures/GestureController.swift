@@ -22,10 +22,8 @@ final class GestureController {
   private let logger = EventLogger()
   private let fluidPoster = FluidGestureEventPoster()
   private var gesturesEnabled = true
-  private var scrollingEnabled = true
   private var tracker = GestureTracker(threshold: 80.0) // Default threshold
   private var pointerGestureTap: CFMachPort?
-  private var scrollTap: CFMachPort?
   private var lastGestureID: String?
   private var fluidStarted = false
   private var fluidProgressValue = 0.0
@@ -40,7 +38,6 @@ final class GestureController {
   )
   private var fluidMotionTracker = FluidMotionTracker()
   private var immediateOutcome: GestureOutcome?
-  private lazy var scrollController = ScrollController()
   private var wakeObserver: NotificationObserver?
   private var isMissionControlActiveOnStart = false
 
@@ -50,14 +47,6 @@ final class GestureController {
 
   func apply(settings: AppSettings.Values) {
     gesturesEnabled = settings.gesturesEnabled
-    scrollingEnabled = settings.scrollingEnabled
-    scrollController.setEnabled(settings.scrollingEnabled)
-    scrollController.updateConfiguration(
-      speed: settings.scrollSpeed,
-      smoothness: settings.scrollSmoothness,
-      dynamicAccelerationEnabled: settings.dynamicAccelerationEnabled,
-      eventPostingMode: settings.scrollEventPostingMode
-    )
   }
 
   func start() throws {
@@ -73,31 +62,18 @@ final class GestureController {
       callback: eventTapCallback,
       userInfo: pointer
     )
-    scrollTap = CGEvent.tapCreate(
-      tap: .cghidEventTap,
-      place: .headInsertEventTap,
-      options: .defaultTap,
-      eventsOfInterest: eventMask(for: [.scrollWheel]),
-      callback: eventTapCallback,
-      userInfo: pointer
-    )
     guard let pointerGestureTap,
-      let scrollTap,
       let pointerSource = CFMachPortCreateRunLoopSource(
-        kCFAllocatorDefault, pointerGestureTap, 0),
-      let scrollSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, scrollTap, 0)
+        kCFAllocatorDefault, pointerGestureTap, 0)
     else {
       throw ControllerError.eventTapUnavailable
     }
     CFRunLoopAddSource(CFRunLoopGetMain(), pointerSource, .commonModes)
-    CFRunLoopAddSource(CFRunLoopGetMain(), scrollSource, .commonModes)
     CGEvent.tapEnable(tap: pointerGestureTap, enable: true)
-    CGEvent.tapEnable(tap: scrollTap, enable: true)
 
-    // Reset scroll animation state and warm up WindowServer caches after screen wakes 
+    // Warm up WindowServer caches after screen wakes 
     // to avoid stale CVDisplayLink timestamps causing jitter and first-swipe lag.
     wakeObserver = NotificationObserver { [weak self] in
-      self?.scrollController.resetForWake()
       self?.warmUpAfterWake()
     }
 
@@ -107,7 +83,7 @@ final class GestureController {
         "mode": "private-drag",
         "os_version": ProcessInfo.processInfo.operatingSystemVersionString,
         "pointer_tap": "session_active",
-        "scroll_tap": "hid_active",
+        "scroll_tap": "none",
         "event_mask": "gesture_control",
       ])
   }
@@ -115,7 +91,6 @@ final class GestureController {
   func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
       if let pointerGestureTap { CGEvent.tapEnable(tap: pointerGestureTap, enable: true) }
-      if let scrollTap { CGEvent.tapEnable(tap: scrollTap, enable: true) }
       logger.write("event_tap_reenabled", ["reason": "\(type.rawValue)"])
       return Unmanaged.passUnretained(event)
     }
@@ -124,9 +99,6 @@ final class GestureController {
     }
 
     switch type {
-    case .scrollWheel:
-      guard scrollingEnabled else { return Unmanaged.passUnretained(event) }
-      return scrollController.handle(event: event)
     case .rightMouseDown:
       guard gesturesEnabled else { return Unmanaged.passUnretained(event) }
       begin(at: event.location, timestamp: event.timestamp)
