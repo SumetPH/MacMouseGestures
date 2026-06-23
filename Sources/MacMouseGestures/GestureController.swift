@@ -21,7 +21,8 @@ private func eventTapCallback(
 final class GestureController {
   private let logger = EventLogger()
   private let fluidPoster = FluidGestureEventPoster()
-  private var isEnabled = true
+  private var gesturesEnabled = true
+  private var scrollingEnabled = true
   private var tracker = GestureTracker(threshold: 80.0) // Default threshold
   private var pointerGestureTap: CFMachPort?
   private var scrollTap: CFMachPort?
@@ -48,8 +49,9 @@ final class GestureController {
 
 
   func apply(settings: AppSettings.Values) {
-    isEnabled = settings.isEnabled
-    scrollController.setEnabled(settings.isEnabled)
+    gesturesEnabled = settings.gesturesEnabled
+    scrollingEnabled = settings.scrollingEnabled
+    scrollController.setEnabled(settings.scrollingEnabled)
     scrollController.updateConfiguration(
       speed: settings.scrollSpeed,
       smoothness: settings.scrollSmoothness,
@@ -117,22 +119,25 @@ final class GestureController {
       logger.write("event_tap_reenabled", ["reason": "\(type.rawValue)"])
       return Unmanaged.passUnretained(event)
     }
-    guard isEnabled else { return Unmanaged.passUnretained(event) }
     if InputPoster.isSynthetic(event) {
       return Unmanaged.passUnretained(event)
     }
 
     switch type {
     case .scrollWheel:
+      guard scrollingEnabled else { return Unmanaged.passUnretained(event) }
       return scrollController.handle(event: event)
     case .rightMouseDown:
+      guard gesturesEnabled else { return Unmanaged.passUnretained(event) }
       begin(at: event.location, timestamp: event.timestamp)
       return nil
     case .rightMouseDragged:
+      guard gesturesEnabled else { return Unmanaged.passUnretained(event) }
       guard tracker.isTracking else { return Unmanaged.passUnretained(event) }
       drag(to: event.location, timestamp: event.timestamp)
       return nil
     case .rightMouseUp:
+      guard gesturesEnabled else { return Unmanaged.passUnretained(event) }
       guard tracker.isTracking else { return Unmanaged.passUnretained(event) }
       finish(at: event.location, timestamp: event.timestamp)
       return nil

@@ -9,7 +9,7 @@ final class MenuBarController: NSObject {
   private var eventMonitors: [Any] = []
 
   init(settings: AppSettings) {
-    let contentSize = NSSize(width: 300, height: 300)
+    let contentSize = NSSize(width: 300, height: 320)
     panel = MenuBarPanel(
       contentRect: NSRect(origin: .zero, size: contentSize),
       styleMask: [.borderless, .nonactivatingPanel],
@@ -134,27 +134,25 @@ private struct MenuBarView: View {
         Text("Mac Mouse Gestures")
           .font(.headline)
         Spacer()
-        Toggle("Enabled", isOn: $settings.isEnabled)
+        Toggle("Gestures", isOn: $settings.gesturesEnabled)
           .labelsHidden()
           .toggleStyle(.switch)
           .controlSize(.small)
           .accessibilityLabel("Enable Mac Mouse Gestures")
       }
 
+      Divider()
+
       HStack {
-        Text("Launch at Login")
+        Text("Scrolling")
+          .font(.subheadline.weight(.semibold))
         Spacer()
-        Toggle("Launch at Login", isOn: $settings.launchAtLogin)
+        Toggle("Scrolling", isOn: $settings.scrollingEnabled)
           .labelsHidden()
           .toggleStyle(.switch)
           .controlSize(.small)
-          .accessibilityLabel("Launch at login")
+          .accessibilityLabel("Enable scrolling")
       }
-
-      Divider()
-
-      Text("Scrolling")
-        .font(.subheadline.weight(.semibold))
 
       VStack(alignment: .leading, spacing: 6) {
         Text("Preset")
@@ -184,6 +182,7 @@ private struct MenuBarView: View {
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
       }
+      .disabled(!settings.scrollingEnabled)
 
       settingSlider(
         title: "Speed",
@@ -191,12 +190,15 @@ private struct MenuBarView: View {
         range: AppSettings.scrollSpeedRange,
         accessibilityLabel: "Scroll speed"
       )
+      .disabled(!settings.scrollingEnabled)
+
       settingSlider(
         title: "Smoothness",
         value: $settings.scrollSmoothness,
         range: AppSettings.scrollSmoothnessRange,
         accessibilityLabel: "Scroll smoothness"
       )
+      .disabled(!settings.scrollingEnabled)
 
       HStack {
         Text("Scroll Acceleration")
@@ -207,6 +209,7 @@ private struct MenuBarView: View {
           .controlSize(.small)
           .accessibilityLabel("Scroll acceleration")
       }
+      .disabled(!settings.scrollingEnabled)
 
       VStack(alignment: .leading, spacing: 6) {
         Text("Posting")
@@ -224,15 +227,34 @@ private struct MenuBarView: View {
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
       }
+      .disabled(!settings.scrollingEnabled)
 
       HStack {
+        Toggle("Launch at Login", isOn: $settings.launchAtLogin)
+          .toggleStyle(.checkbox)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .controlSize(.small)
+          .accessibilityLabel("Launch at login")
+
+        Spacer()
+
         Button("Reset", systemImage: "arrow.counterclockwise") {
           settings.resetScrolling()
         }
+        .buttonStyle(.borderless)
+        .font(.caption)
+        .disabled(!settings.scrollingEnabled)
+
         Spacer()
+          .frame(width: 12)
+
         Button("Quit", systemImage: "power") {
           NSApplication.shared.terminate(nil)
         }
+        .buttonStyle(.borderless)
+        .font(.caption)
+        .foregroundStyle(.red)
       }
     }
     .padding(16)

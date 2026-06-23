@@ -6,7 +6,8 @@ import ServiceManagement
 @MainActor
 final class AppSettings: ObservableObject {
   struct Values {
-    let isEnabled: Bool
+    let gesturesEnabled: Bool
+    let scrollingEnabled: Bool
     let scrollSpeed: Double
     let scrollSmoothness: Double
     let dynamicAccelerationEnabled: Bool
@@ -14,7 +15,8 @@ final class AppSettings: ObservableObject {
   }
 
   private enum Key {
-    static let isEnabled = "isEnabled"
+    static let gesturesEnabled = "gesturesEnabled"
+    static let scrollingEnabled = "scrollingEnabled"
     static let scrollSpeed = "scrollSpeed"
     static let scrollSmoothness = "scrollSmoothness"
     static let dynamicAccelerationEnabled = "dynamicAccelerationEnabled"
@@ -27,7 +29,10 @@ final class AppSettings: ObservableObject {
   static let scrollSmoothnessRange = 0.75...1.5
   static let customScrollPresetID = "custom"
 
-  @Published var isEnabled: Bool {
+  @Published var gesturesEnabled: Bool {
+    didSet { saveAndNotify() }
+  }
+  @Published var scrollingEnabled: Bool {
     didSet { saveAndNotify() }
   }
   @Published var scrollSpeed: Double {
@@ -52,7 +57,8 @@ final class AppSettings: ObservableObject {
 
   init(defaults: UserDefaults = .standard) {
     self.defaults = defaults
-    isEnabled = defaults.object(forKey: Key.isEnabled) as? Bool ?? true
+    gesturesEnabled = defaults.object(forKey: Key.gesturesEnabled) as? Bool ?? true
+    scrollingEnabled = defaults.object(forKey: Key.scrollingEnabled) as? Bool ?? true
     scrollSpeed = Self.loadValue(
       from: defaults,
       key: Key.scrollSpeed,
@@ -72,7 +78,8 @@ final class AppSettings: ObservableObject {
 
   var values: Values {
     Values(
-      isEnabled: isEnabled,
+      gesturesEnabled: gesturesEnabled,
+      scrollingEnabled: scrollingEnabled,
       scrollSpeed: scrollSpeed,
       scrollSmoothness: scrollSmoothness,
       dynamicAccelerationEnabled: dynamicAccelerationEnabled,
@@ -105,7 +112,8 @@ final class AppSettings: ObservableObject {
   }
 
   private func saveAndNotify() {
-    defaults.set(isEnabled, forKey: Key.isEnabled)
+    defaults.set(gesturesEnabled, forKey: Key.gesturesEnabled)
+    defaults.set(scrollingEnabled, forKey: Key.scrollingEnabled)
     defaults.set(scrollSpeed, forKey: Key.scrollSpeed)
     defaults.set(scrollSmoothness, forKey: Key.scrollSmoothness)
     defaults.set(dynamicAccelerationEnabled, forKey: Key.dynamicAccelerationEnabled)
