@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import GestureCore
 import Foundation
@@ -9,6 +10,13 @@ private let syntheticMarker: Int64 = 0x5350_4143_4553
 private let defaultPixelsPerLine = 10.0
 
 enum InputPoster {
+  private enum MediaKey {
+    static let soundUp = 0
+    static let soundDown = 1
+    static let keyDown = 0xA
+    static let keyUp = 0xB
+  }
+
   static func rightClick(at point: CGPoint) {
     for type: CGEventType in [.rightMouseDown, .rightMouseUp] {
       let event = CGEvent(
@@ -57,7 +65,37 @@ enum InputPoster {
     keyUp?.post(tap: .cgSessionEventTap)
   }
 
+  static func volumeUp() {
+    postMediaKey(type: MediaKey.soundUp)
+  }
+
+  static func volumeDown() {
+    postMediaKey(type: MediaKey.soundDown)
+  }
+
   static func isSynthetic(_ event: CGEvent) -> Bool {
     event.getIntegerValueField(.eventSourceUserData) == syntheticMarker
+  }
+
+  private static func postMediaKey(type: Int) {
+    postMediaKey(type: type, state: MediaKey.keyDown)
+    postMediaKey(type: type, state: MediaKey.keyUp)
+  }
+
+  private static func postMediaKey(type: Int, state: Int) {
+    let data1 = (type << 16) | (state << 8)
+    let event = NSEvent.otherEvent(
+      with: .systemDefined,
+      location: .zero,
+      modifierFlags: [],
+      timestamp: 0,
+      windowNumber: 0,
+      context: nil,
+      subtype: 8,
+      data1: data1,
+      data2: -1
+    )
+    event?.cgEvent?.setIntegerValueField(.eventSourceUserData, value: syntheticMarker)
+    event?.cgEvent?.post(tap: .cghidEventTap)
   }
 }

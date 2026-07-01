@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:MacMouseGestures}",
+            "name": "Debug MacMouseGestures",
+            "target": "MacMouseGestures",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug MacMouseGestures"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:MacMouseGestures}",
+            "name": "Release MacMouseGestures",
+            "target": "MacMouseGestures",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release MacMouseGestures"
+        }
+    ]
+}

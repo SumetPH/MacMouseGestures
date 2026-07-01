@@ -40,6 +40,10 @@ final class GestureController {
   private var immediateOutcome: GestureOutcome?
   private var wakeObserver: NotificationObserver?
   private var isMissionControlActiveOnStart = false
+  private let volumeModifierButtonNumber: Int64 = 4
+  private let volumeDragStepPixels: CGFloat = 32
+  private var isVolumeModifierHeld = false
+  private var lastVolumeDragX: CGFloat?
 
   init() {}
 
@@ -58,6 +62,7 @@ final class GestureController {
       options: .defaultTap,
       eventsOfInterest: eventMask(for: [
         .rightMouseDown, .rightMouseDragged, .rightMouseUp,
+        .otherMouseDown, .otherMouseDragged, .otherMouseUp,
       ]),
       callback: eventTapCallback,
       userInfo: pointer
@@ -83,7 +88,7 @@ final class GestureController {
         "mode": "private-drag",
         "os_version": ProcessInfo.processInfo.operatingSystemVersionString,
         "pointer_tap": "session_active",
-        "scroll_tap": "none",
+        "volume_gesture": "button_4_horizontal_drag",
         "event_mask": "gesture_control",
       ])
   }
@@ -113,9 +118,74 @@ final class GestureController {
       guard tracker.isTracking else { return Unmanaged.passUnretained(event) }
       finish(at: event.location, timestamp: event.timestamp)
       return nil
+    case .otherMouseDown:
+      return handleOtherMouseDown(event)
+    case .otherMouseDragged:
+      return handleOtherMouseDragged(event)
+    case .otherMouseUp:
+      return handleOtherMouseUp(event)
     default:
       return Unmanaged.passUnretained(event)
     }
+  }
+
+  private func handleOtherMouseDown(_ event: CGEvent) -> Unmanaged<CGEvent>? {
+    let buttonNumber = event.getIntegerValueField(.mouseEventButtonNumber)
+    logger.write("other_mouse_down", ["button_number": "\(buttonNumber)"])
+
+    guard buttonNumber == volumeModifierButtonNumber else {
+      return Unmanaged.passUnretained(event)
+    }
+
+    isVolumeModifierHeld = true
+    lastVolumeDragX = event.location.x
+    logger.write(
+      "volume_modifier_began",
+      ["button_number": "\(buttonNumber)", "x": "\(event.location.x)"])
+    return nil
+  }
+
+  private func handleOtherMouseDragged(_ event: CGEvent) -> Unmanaged<CGEvent>? {
+    guard isVolumeModifierHeld else {
+      return Unmanaged.passUnretained(event)
+    }
+    guard let lastVolumeDragX else {
+      self.lastVolumeDragX = event.location.x
+      return nil
+    }
+
+    let deltaX = event.location.x - lastVolumeDragX
+    let steps = Int(deltaX / volumeDragStepPixels)
+    guard steps != 0 else { return nil }
+
+    if steps > 0 {
+      for _ in 0..<steps { InputPoster.volumeUp() }
+      logger.write(
+        "volume_drag",
+        ["direction": "up", "steps": "\(steps)", "delta_x": "\(deltaX)"])
+    } else {
+      for _ in 0..<abs(steps) { InputPoster.volumeDown() }
+      logger.write(
+        "volume_drag",
+        ["direction": "down", "steps": "\(abs(steps))", "delta_x": "\(deltaX)"])
+    }
+
+    self.lastVolumeDragX = lastVolumeDragX + CGFloat(steps) * volumeDragStepPixels
+    return nil
+  }
+
+  private func handleOtherMouseUp(_ event: CGEvent) -> Unmanaged<CGEvent>? {
+    let buttonNumber = event.getIntegerValueField(.mouseEventButtonNumber)
+    logger.write("other_mouse_up", ["button_number": "\(buttonNumber)"])
+
+    guard buttonNumber == volumeModifierButtonNumber else {
+      return Unmanaged.passUnretained(event)
+    }
+
+    isVolumeModifierHeld = false
+    lastVolumeDragX = nil
+    logger.write("volume_modifier_ended", ["button_number": "\(buttonNumber)"])
+    return nil
   }
 
   private func eventMask(for eventTypes: [CGEventType]) -> CGEventMask {
