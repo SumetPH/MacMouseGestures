@@ -41,9 +41,7 @@ final class GestureController {
   private var wakeObserver: NotificationObserver?
   private var isMissionControlActiveOnStart = false
   private let volumeModifierButtonNumber: Int64 = 4
-  private let volumeDragStepPixels: CGFloat = 32
   private var isVolumeModifierHeld = false
-  private var lastVolumeDragX: CGFloat?
 
   init() {}
 
@@ -61,8 +59,9 @@ final class GestureController {
       place: .headInsertEventTap,
       options: .defaultTap,
       eventsOfInterest: eventMask(for: [
+        .leftMouseDown, .leftMouseUp,
         .rightMouseDown, .rightMouseDragged, .rightMouseUp,
-        .otherMouseDown, .otherMouseDragged, .otherMouseUp,
+        .otherMouseDown, .otherMouseUp,
       ]),
       callback: eventTapCallback,
       userInfo: pointer
@@ -88,7 +87,7 @@ final class GestureController {
         "mode": "private-drag",
         "os_version": ProcessInfo.processInfo.operatingSystemVersionString,
         "pointer_tap": "session_active",
-        "volume_gesture": "button_4_horizontal_drag",
+        "volume_gesture": "button_4_left_right_click",
         "event_mask": "gesture_control",
       ])
   }
@@ -104,24 +103,37 @@ final class GestureController {
     }
 
     switch type {
+    case .leftMouseDown:
+      guard isVolumeModifierHeld else { return Unmanaged.passUnretained(event) }
+      InputPoster.volumeDown()
+      logger.write("volume_click", ["direction": "down", "button": "left"])
+      return nil
+    case .leftMouseUp:
+      guard isVolumeModifierHeld else { return Unmanaged.passUnretained(event) }
+      return nil
     case .rightMouseDown:
+      if isVolumeModifierHeld {
+        InputPoster.volumeUp()
+        logger.write("volume_click", ["direction": "up", "button": "right"])
+        return nil
+      }
       guard gesturesEnabled else { return Unmanaged.passUnretained(event) }
       begin(at: event.location, timestamp: event.timestamp)
       return nil
     case .rightMouseDragged:
+      guard !isVolumeModifierHeld else { return nil }
       guard gesturesEnabled else { return Unmanaged.passUnretained(event) }
       guard tracker.isTracking else { return Unmanaged.passUnretained(event) }
       drag(to: event.location, timestamp: event.timestamp)
       return nil
     case .rightMouseUp:
+      guard !isVolumeModifierHeld else { return nil }
       guard gesturesEnabled else { return Unmanaged.passUnretained(event) }
       guard tracker.isTracking else { return Unmanaged.passUnretained(event) }
       finish(at: event.location, timestamp: event.timestamp)
       return nil
     case .otherMouseDown:
       return handleOtherMouseDown(event)
-    case .otherMouseDragged:
-      return handleOtherMouseDragged(event)
     case .otherMouseUp:
       return handleOtherMouseUp(event)
     default:
@@ -138,39 +150,9 @@ final class GestureController {
     }
 
     isVolumeModifierHeld = true
-    lastVolumeDragX = event.location.x
     logger.write(
       "volume_modifier_began",
-      ["button_number": "\(buttonNumber)", "x": "\(event.location.x)"])
-    return nil
-  }
-
-  private func handleOtherMouseDragged(_ event: CGEvent) -> Unmanaged<CGEvent>? {
-    guard isVolumeModifierHeld else {
-      return Unmanaged.passUnretained(event)
-    }
-    guard let lastVolumeDragX else {
-      self.lastVolumeDragX = event.location.x
-      return nil
-    }
-
-    let deltaX = event.location.x - lastVolumeDragX
-    let steps = Int(deltaX / volumeDragStepPixels)
-    guard steps != 0 else { return nil }
-
-    if steps > 0 {
-      for _ in 0..<steps { InputPoster.volumeUp() }
-      logger.write(
-        "volume_drag",
-        ["direction": "up", "steps": "\(steps)", "delta_x": "\(deltaX)"])
-    } else {
-      for _ in 0..<abs(steps) { InputPoster.volumeDown() }
-      logger.write(
-        "volume_drag",
-        ["direction": "down", "steps": "\(abs(steps))", "delta_x": "\(deltaX)"])
-    }
-
-    self.lastVolumeDragX = lastVolumeDragX + CGFloat(steps) * volumeDragStepPixels
+      ["button_number": "\(buttonNumber)"])
     return nil
   }
 
@@ -183,7 +165,6 @@ final class GestureController {
     }
 
     isVolumeModifierHeld = false
-    lastVolumeDragX = nil
     logger.write("volume_modifier_ended", ["button_number": "\(buttonNumber)"])
     return nil
   }
