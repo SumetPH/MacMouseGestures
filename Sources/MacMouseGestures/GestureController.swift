@@ -31,6 +31,7 @@ final class GestureController {
   private var fluidDisplayHeight = 900.0
   private var scaleH = 0.0
   private var scaleV = 0.0
+  private let horizontalPreviewTrackingGain = 0.80
   private var fluidStartPoint: CGPoint?
   private var lastFluidPostTimestamp: UInt64?
   private var fluidProgressLogLimiter = TimestampRateLimiter(
@@ -285,7 +286,8 @@ final class GestureController {
     }
 
     if update.axis == .horizontal {
-      fluidProgressValue = Double(update.deltaX) * scaleH * -1.0
+      fluidProgressValue =
+        Double(update.deltaX) * scaleH * horizontalPreviewTrackingGain * -1.0
     } else {
       fluidProgressValue = Double(update.deltaY) * scaleV * -1.0
     }
