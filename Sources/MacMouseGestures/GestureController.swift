@@ -41,15 +41,19 @@ final class GestureController {
   private var immediateOutcome: GestureOutcome?
   private var wakeObserver: NotificationObserver?
   private var isMissionControlActiveOnStart = false
-  private let volumeModifierButtonNumber: Int64 = 4
-  private var isVolumeModifierHeld = false
-
-  init() {}
-
-
+  private var mouseButtonActions: [Int64: MouseButtonAction] = [:]
+  private var suppressedMouseButtons: Set<Int64> = []
 
   func apply(settings: AppSettings.Values) {
     gesturesEnabled = settings.gesturesEnabled
+    var actions: [Int64: MouseButtonAction] = [:]
+    if settings.mouseButton3Action != .none {
+      actions[settings.mouseButton3Number] = settings.mouseButton3Action
+    }
+    if settings.mouseButton4Action != .none {
+      actions[settings.mouseButton4Number] = settings.mouseButton4Action
+    }
+    mouseButtonActions = actions
   }
 
   func start() throws {
@@ -60,7 +64,6 @@ final class GestureController {
       place: .headInsertEventTap,
       options: .defaultTap,
       eventsOfInterest: eventMask(for: [
-        .leftMouseDown, .leftMouseUp,
         .rightMouseDown, .rightMouseDragged, .rightMouseUp,
         .otherMouseDown, .otherMouseUp,
       ]),
@@ -88,7 +91,7 @@ final class GestureController {
         "mode": "private-drag",
         "os_version": ProcessInfo.processInfo.operatingSystemVersionString,
         "pointer_tap": "session_active",
-        "volume_gesture": "button_4_left_right_click",
+        "mouse_actions": "recorded_button_numbers",
         "event_mask": "gesture_control",
       ])
   }
@@ -104,31 +107,16 @@ final class GestureController {
     }
 
     switch type {
-    case .leftMouseDown:
-      guard isVolumeModifierHeld else { return Unmanaged.passUnretained(event) }
-      InputPoster.volumeDown()
-      logger.write("volume_click", ["direction": "down", "button": "left"])
-      return nil
-    case .leftMouseUp:
-      guard isVolumeModifierHeld else { return Unmanaged.passUnretained(event) }
-      return nil
     case .rightMouseDown:
-      if isVolumeModifierHeld {
-        InputPoster.volumeUp()
-        logger.write("volume_click", ["direction": "up", "button": "right"])
-        return nil
-      }
       guard gesturesEnabled else { return Unmanaged.passUnretained(event) }
       begin(at: event.location, timestamp: event.timestamp)
       return nil
     case .rightMouseDragged:
-      guard !isVolumeModifierHeld else { return nil }
       guard gesturesEnabled else { return Unmanaged.passUnretained(event) }
       guard tracker.isTracking else { return Unmanaged.passUnretained(event) }
       drag(to: event.location, timestamp: event.timestamp)
       return nil
     case .rightMouseUp:
-      guard !isVolumeModifierHeld else { return nil }
       guard gesturesEnabled else { return Unmanaged.passUnretained(event) }
       guard tracker.isTracking else { return Unmanaged.passUnretained(event) }
       finish(at: event.location, timestamp: event.timestamp)
@@ -146,14 +134,20 @@ final class GestureController {
     let buttonNumber = event.getIntegerValueField(.mouseEventButtonNumber)
     logger.write("other_mouse_down", ["button_number": "\(buttonNumber)"])
 
-    guard buttonNumber == volumeModifierButtonNumber else {
+    guard gesturesEnabled, let action = mouseButtonActions[buttonNumber] else {
       return Unmanaged.passUnretained(event)
     }
 
-    isVolumeModifierHeld = true
+    suppressedMouseButtons.insert(buttonNumber)
+    Task {
+      InputPoster.performMouseButtonAction(action)
+    }
     logger.write(
-      "volume_modifier_began",
-      ["button_number": "\(buttonNumber)"])
+      "mouse_action",
+      [
+        "button_number": "\(buttonNumber)",
+        "action": action.rawValue,
+      ])
     return nil
   }
 
@@ -161,12 +155,9 @@ final class GestureController {
     let buttonNumber = event.getIntegerValueField(.mouseEventButtonNumber)
     logger.write("other_mouse_up", ["button_number": "\(buttonNumber)"])
 
-    guard buttonNumber == volumeModifierButtonNumber else {
+    guard suppressedMouseButtons.remove(buttonNumber) != nil else {
       return Unmanaged.passUnretained(event)
     }
-
-    isVolumeModifierHeld = false
-    logger.write("volume_modifier_ended", ["button_number": "\(buttonNumber)"])
     return nil
   }
 
@@ -216,7 +207,7 @@ final class GestureController {
         ["gesture_id": lastGestureID!, "outcome": outcome.logName])
       if case .missionControl(let direction) = outcome {
         Task {
-          await InputPoster.missionControlShortcut(direction: direction)
+          InputPoster.performMissionControlAction(direction: direction)
         }
       }
       return
@@ -391,7 +382,7 @@ final class GestureController {
     if phase == .ended {
       if case .missionControl(let direction) = outcome {
         Task {
-          await InputPoster.missionControlShortcut(direction: direction)
+          InputPoster.performMissionControlAction(direction: direction)
         }
       }
     } else if isSwitchSpaceRightInMissionControl {

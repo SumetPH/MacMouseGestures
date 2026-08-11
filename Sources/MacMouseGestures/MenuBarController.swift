@@ -8,7 +8,7 @@ final class MenuBarController: NSObject {
   private var eventMonitors: [Any] = []
 
   init(settings: AppSettings) {
-    let contentSize = NSSize(width: 300, height: 110)
+    let contentSize = NSSize(width: 340, height: 240)
     panel = MenuBarPanel(
       contentRect: NSRect(origin: .zero, size: contentSize),
       styleMask: [.borderless, .nonactivatingPanel],
@@ -142,6 +142,29 @@ private struct MenuBarView: View {
 
       Divider()
 
+      VStack(alignment: .leading, spacing: 10) {
+        Text("Mouse Buttons")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+
+        actionRow(
+          slotLabel: "First",
+          buttonNumber: $settings.mouseButton3Number,
+          action: $settings.mouseButton3Action
+        )
+        actionRow(
+          slotLabel: "Second",
+          buttonNumber: $settings.mouseButton4Number,
+          action: $settings.mouseButton4Action
+        )
+
+        Text("Record a mouse button, then choose its action.")
+          .font(.caption2)
+          .foregroundStyle(.tertiary)
+      }
+
+      Divider()
+
       HStack {
         Toggle("Launch at Login", isOn: $settings.launchAtLogin)
           .toggleStyle(.checkbox)
@@ -160,6 +183,34 @@ private struct MenuBarView: View {
       }
     }
     .padding(16)
-    .frame(width: 300)
+    .frame(width: 340)
+  }
+
+  private func actionRow(
+    slotLabel: String,
+    buttonNumber: Binding<Int64>,
+    action: Binding<MouseButtonAction>
+  ) -> some View {
+    let mouseLabel = "Mouse \(buttonNumber.wrappedValue)"
+
+    return HStack(spacing: 8) {
+      MouseButtonRecorder(
+        label: "Record \(slotLabel.lowercased()) mouse button",
+        buttonNumber: buttonNumber
+      )
+      .frame(width: 84, height: 26)
+
+      Picker("\(mouseLabel) action", selection: action) {
+        ForEach(MouseButtonAction.allCases) { action in
+          Text(action.displayName).tag(action)
+        }
+      }
+      .labelsHidden()
+      .pickerStyle(.menu)
+      .frame(width: 190, alignment: .leading)
+      .accessibilityLabel("\(mouseLabel) action")
+
+      Spacer(minLength: 0)
+    }
   }
 }

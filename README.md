@@ -6,7 +6,7 @@ A macOS menu bar utility that maps mouse gestures to desktop navigation.
   live desktop transition.
 - Hold the right mouse button and drag up or down to open Mission Control or
   Application Windows.
-- Hold mouse button 4 and click left or right to send volume down/up.
+- Assign Mission Control actions to mouse buttons 3 and 4.
 - Use the menu bar item to enable or disable gestures and toggle launch at
   login.
 
@@ -19,7 +19,7 @@ Store safe and may need updates when macOS changes its private event handling.
 - macOS 13 or newer
 - Xcode Command Line Tools
 - Accessibility permission for the built app or for the terminal running it
-- A mouse with a right button; mouse button 4 is optional for the volume gesture
+- A mouse with a right button; mouse buttons 3 and 4 are optional for custom actions
 
 ## Build
 
@@ -65,7 +65,12 @@ CODE_SIGN_IDENTITY="-" ./scripts/build-app.sh
 4. Quit and launch the app again.
 
 The app runs as a menu bar accessory. Click the mouse icon in the menu bar to
-toggle gestures, launch at login, or quit.
+toggle gestures, assign actions to mouse buttons 3 and 4, launch at
+login, or quit.
+
+Click a Mouse button field and press the physical mouse button to detect the
+button number reported by that device. Then choose Mission Control or
+Application Windows from the action menu.
 
 ## Gestures
 
@@ -75,10 +80,11 @@ toggle gestures, launch at login, or quit.
 | Right-button drag right | Switch one Space right |
 | Right-button drag up | Open Mission Control |
 | Right-button drag down | Open Application Windows |
-| Mouse button 4 + left click | Volume down |
-| Mouse button 4 + right click | Volume up |
+| Mouse button 3 | Configured action |
+| Mouse button 4 | Configured action |
 
 Short right-button clicks are replayed as normal right clicks.
+Mouse buttons set to No Action keep their normal system behavior.
 
 ## Notes and Limits
 
