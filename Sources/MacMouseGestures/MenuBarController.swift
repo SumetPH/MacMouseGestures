@@ -5,9 +5,11 @@ import SwiftUI
 final class MenuBarController: NSObject {
   private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
   private let panel: NSPanel
+  private let settings: AppSettings
   private var eventMonitors: [Any] = []
 
   init(settings: AppSettings) {
+    self.settings = settings
     let contentSize = NSSize(width: 340, height: 240)
     panel = MenuBarPanel(
       contentRect: NSRect(origin: .zero, size: contentSize),
@@ -17,6 +19,8 @@ final class MenuBarController: NSObject {
     )
 
     super.init()
+
+    statusItem.isVisible = !settings.hideMenuBarIcon
 
     if let button = statusItem.button {
       let image = NSImage(
@@ -39,10 +43,25 @@ final class MenuBarController: NSObject {
     panel.isOpaque = false
     panel.collectionBehavior = [.transient, .moveToActiveSpace]
     panel.contentViewController = NSHostingController(
-      rootView: MenuBarView(settings: settings)
+      rootView: MenuBarView(
+        settings: settings,
+        onHideMenuBarIconChange: { [weak self] hide in
+          self?.updateMenuBarIconVisibility(hide)
+        }
+      )
         .background(.regularMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     )
+  }
+
+  func handleApplicationOpen() {
+    guard settings.hideMenuBarIcon else { return }
+
+    statusItem.isVisible = true
+    DispatchQueue.main.async { [weak self] in
+      guard let self, let button = self.statusItem.button else { return }
+      self.showPanel(relativeTo: button)
+    }
   }
 
   @objc private func togglePopover(_ sender: NSStatusBarButton) {
@@ -78,6 +97,11 @@ final class MenuBarController: NSObject {
     }
     panel.orderOut(nil)
     removeEventMonitors()
+    statusItem.isVisible = !settings.hideMenuBarIcon
+  }
+
+  private func updateMenuBarIconVisibility(_ hide: Bool) {
+    statusItem.isVisible = !hide
   }
 
   private func installEventMonitors() {
@@ -124,6 +148,7 @@ private final class MenuBarPanel: NSPanel {
 
 private struct MenuBarView: View {
   @ObservedObject var settings: AppSettings
+  let onHideMenuBarIconChange: (Bool) -> Void
 
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
@@ -166,6 +191,24 @@ private struct MenuBarView: View {
       Divider()
 
       HStack {
+        Toggle(
+          "Hide Menu Bar Icon",
+          isOn: Binding(
+            get: { settings.hideMenuBarIcon },
+            set: {
+              settings.hideMenuBarIcon = $0
+              onHideMenuBarIconChange($0)
+            }
+          )
+        )
+        .toggleStyle(.checkbox)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .controlSize(.small)
+        .accessibilityLabel("Hide menu bar icon")
+
+        Spacer()
+
         Toggle("Launch at Login", isOn: $settings.launchAtLogin)
           .toggleStyle(.checkbox)
           .font(.caption)

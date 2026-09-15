@@ -9,6 +9,8 @@ A macOS menu bar utility that maps mouse gestures to desktop navigation.
 - Assign Mission Control actions to mouse buttons 3 and 4.
 - Use the menu bar item to enable or disable gestures and toggle launch at
   login.
+- Optionally hide the menu bar icon; opening the app temporarily restores the
+  icon and opens its popup.
 
 This is an experimental personal utility. It uses Accessibility event taps,
 synthesized input, and undocumented Dock/gesture event behavior. It is not App
@@ -65,8 +67,9 @@ CODE_SIGN_IDENTITY="-" ./scripts/build-app.sh
 4. Quit and launch the app again.
 
 The app runs as a menu bar accessory. Click the mouse icon in the menu bar to
-toggle gestures, assign actions to mouse buttons 3 and 4, launch at
-login, or quit.
+toggle gestures, assign actions to mouse buttons 3 and 4, launch at login,
+hide the menu bar icon, or quit. When the icon is hidden, open the app to
+temporarily show the icon and popup.
 
 Click a Mouse button field and press the physical mouse button to detect the
 button number reported by that device. Then choose Mission Control or

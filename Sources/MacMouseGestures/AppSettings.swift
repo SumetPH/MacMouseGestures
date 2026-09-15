@@ -14,6 +14,7 @@ final class AppSettings: ObservableObject {
 
   private enum Key {
     static let gesturesEnabled = "gesturesEnabled"
+    static let hideMenuBarIcon = "hideMenuBarIcon"
     static let mouseButton3Number = "mouseButton3Number"
     static let mouseButton4Number = "mouseButton4Number"
     static let mouseButton3Action = "mouseButton3Action"
@@ -25,6 +26,9 @@ final class AppSettings: ObservableObject {
   }
   @Published var launchAtLogin: Bool {
     didSet { updateLaunchAtLogin() }
+  }
+  @Published var hideMenuBarIcon: Bool {
+    didSet { saveAndNotify() }
   }
   @Published var mouseButton3Number: Int64 {
     didSet { saveAndNotify() }
@@ -47,6 +51,7 @@ final class AppSettings: ObservableObject {
     self.defaults = defaults
     gesturesEnabled = defaults.object(forKey: Key.gesturesEnabled) as? Bool ?? true
     launchAtLogin = SMAppService.mainApp.status == .enabled
+    hideMenuBarIcon = defaults.object(forKey: Key.hideMenuBarIcon) as? Bool ?? false
     mouseButton3Number = Self.loadButtonNumber(
       defaults: defaults,
       key: Key.mouseButton3Number,
@@ -73,6 +78,7 @@ final class AppSettings: ObservableObject {
 
   private func saveAndNotify() {
     defaults.set(gesturesEnabled, forKey: Key.gesturesEnabled)
+    defaults.set(hideMenuBarIcon, forKey: Key.hideMenuBarIcon)
     defaults.set(mouseButton3Number, forKey: Key.mouseButton3Number)
     defaults.set(mouseButton4Number, forKey: Key.mouseButton4Number)
     defaults.set(mouseButton3Action.rawValue, forKey: Key.mouseButton3Action)

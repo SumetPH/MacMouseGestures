@@ -2,6 +2,27 @@ import AppKit
 import ApplicationServices
 import Foundation
 
+@MainActor
+private final class ApplicationDelegate: NSObject, NSApplicationDelegate {
+  private let menuBarController: MenuBarController
+
+  init(menuBarController: MenuBarController) {
+    self.menuBarController = menuBarController
+  }
+
+  func applicationDidFinishLaunching(_ notification: Notification) {
+    menuBarController.handleApplicationOpen()
+  }
+
+  func applicationShouldHandleReopen(
+    _ sender: NSApplication,
+    hasVisibleWindows flag: Bool
+  ) -> Bool {
+    menuBarController.handleApplicationOpen()
+    return true
+  }
+}
+
 do {
   let prompt = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
   guard AXIsProcessTrustedWithOptions(prompt) else {
@@ -23,8 +44,10 @@ do {
     controller?.apply(settings: values)
   }
   let menuBarController = MenuBarController(settings: settings)
+  let applicationDelegate = ApplicationDelegate(menuBarController: menuBarController)
+  application.delegate = applicationDelegate
 
-  withExtendedLifetime((controller, settings, menuBarController)) {
+  withExtendedLifetime((controller, settings, menuBarController, applicationDelegate)) {
     application.run()
   }
 } catch {
