@@ -228,6 +228,18 @@ final class GestureController {
     }
 
     let completion = tracker.end(at: point)
+    // Vertical gestures use Dock actions, including a threshold crossed on mouse-up.
+    if completion.update?.axis == .vertical {
+      if case .missionControl(let direction) = completion.outcome {
+        Task { InputPoster.performMissionControlAction(direction: direction) }
+      } else if completion.outcome == .rightClick {
+        InputPoster.rightClick(at: point)
+      }
+      logger.write(
+        "gesture_ended",
+        ["gesture_id": lastGestureID!, "outcome": completion.outcome.logName])
+      return
+    }
     var outcome = completion.outcome
     let releaseDelta = Double(completion.update?.axis == .horizontal ? (completion.update?.deltaX ?? 0) : (completion.update?.deltaY ?? 0))
     let lockedAxis = completion.update?.axis ?? .horizontal

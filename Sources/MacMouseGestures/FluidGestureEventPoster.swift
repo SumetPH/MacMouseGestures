@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import GestureCore
+import DockSwipeBridge
 
 public final class FluidGestureEventPoster: @unchecked Sendable {
   private let eventSource: CGEventSource?
@@ -37,6 +38,23 @@ public final class FluidGestureEventPoster: @unchecked Sendable {
       tripleSendWorkItem?.cancel()
       doubleSendWorkItem = nil
       tripleSendWorkItem = nil
+    }
+
+    if #available(macOS 27.0, *) {
+      // Horizontal HID progress runs opposite to the legacy Quartz fields.
+      let direction = axis == .horizontal ? -1.0 : 1.0
+      guard let event = MMGCreateDockSwipe(
+        UInt32(rawPhase), progress * direction, velocity * direction,
+        axis == .horizontal ? 1 : 2, location
+      ) else {
+        fputs("Unable to create macOS 27 DockSwipe HID event.\n", stderr)
+        return false
+      }
+      event.post(tap: .cgSessionEventTap)
+      if doubleSend && (phase == .ended || phase == .cancelled) {
+        scheduleDoubleSend(e30: event, e29: nil, tap: .cgSessionEventTap)
+      }
+      return true
     }
 
     let valFor41 = 33231.0
@@ -98,19 +116,22 @@ public final class FluidGestureEventPoster: @unchecked Sendable {
   }
 
   @MainActor
-  private func scheduleDoubleSend(e30: CGEvent, e29: CGEvent) {
-    guard let copyE30 = e30.copy(), let copyE29 = e29.copy() else { return }
+  private func scheduleDoubleSend(
+    e30: CGEvent, e29: CGEvent?, tap: CGEventTapLocation = .cghidEventTap
+  ) {
+    guard let copyE30 = e30.copy() else { return }
+    let copyE29 = e29?.copy()
 
     let doubleItem = DispatchWorkItem {
-      copyE30.post(tap: .cghidEventTap)
-      copyE29.post(tap: .cghidEventTap)
+      copyE30.post(tap: tap)
+      copyE29?.post(tap: tap)
     }
     doubleSendWorkItem = doubleItem
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: doubleItem)
 
     let tripleItem = DispatchWorkItem {
-      copyE30.post(tap: .cghidEventTap)
-      copyE29.post(tap: .cghidEventTap)
+      copyE30.post(tap: tap)
+      copyE29?.post(tap: tap)
     }
     tripleSendWorkItem = tripleItem
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: tripleItem)

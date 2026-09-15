@@ -11,13 +11,14 @@ let package = Package(
   ],
   targets: [
     .target(name: "GestureCore"),
+    .target(name: "DockSwipeBridge", cSettings: [.unsafeFlags(["-fobjc-arc"])]),
     .executableTarget(
       name: "MacMouseGestures",
-      dependencies: ["GestureCore"]
+      dependencies: ["GestureCore", "DockSwipeBridge"]
     ),
     .testTarget(
       name: "GestureCoreTests",
-      dependencies: ["GestureCore"]
+      dependencies: ["GestureCore", "DockSwipeBridge"]
     ),
   ]
 )
