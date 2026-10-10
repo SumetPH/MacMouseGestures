@@ -11,7 +11,15 @@ private final class ApplicationDelegate: NSObject, NSApplicationDelegate {
   }
 
   func applicationDidFinishLaunching(_ notification: Notification) {
+    guard !Self.wasLaunchedAsLoginItem() else { return }
     menuBarController.handleApplicationOpen()
+  }
+
+  // Only valid while handling the launch ('oapp') Apple event, i.e. in applicationDidFinishLaunching.
+  private static func wasLaunchedAsLoginItem() -> Bool {
+    let event = NSAppleEventManager.shared().currentAppleEvent
+    return event?.eventID == kAEOpenApplication
+      && event?.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem
   }
 
   func applicationShouldHandleReopen(

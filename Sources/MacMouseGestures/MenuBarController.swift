@@ -58,8 +58,22 @@ final class MenuBarController: NSObject {
     guard settings.hideMenuBarIcon else { return }
 
     statusItem.isVisible = true
-    DispatchQueue.main.async { [weak self] in
-      guard let self, let button = self.statusItem.button else { return }
+    showPanelWhenStatusItemIsLaidOut(attemptsLeft: Self.layoutWaitAttempts)
+  }
+
+  private static let layoutWaitAttempts = 40
+  private static let layoutWaitInterval: TimeInterval = 0.05
+
+  // A freshly shown status item has a zero-height window until the menu bar lays it out.
+  private func showPanelWhenStatusItemIsLaidOut(attemptsLeft: Int) {
+    DispatchQueue.main.asyncAfter(deadline: .now() + Self.layoutWaitInterval) { [weak self] in
+      guard let self, !self.panel.isVisible, let button = self.statusItem.button else { return }
+
+      let isLaidOut = (button.window?.frame.height ?? 0) > 0 && button.window?.screen != nil
+      guard isLaidOut || attemptsLeft <= 0 else {
+        self.showPanelWhenStatusItemIsLaidOut(attemptsLeft: attemptsLeft - 1)
+        return
+      }
       self.showPanel(relativeTo: button)
     }
   }
