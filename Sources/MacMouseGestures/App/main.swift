@@ -33,7 +33,7 @@ private final class ApplicationDelegate: NSObject, NSApplicationDelegate {
 
 do {
   guard PermissionManager.requestAccessibility() else {
-    fputs(
+    fputs(  // macos-app:allow-print terminal-facing startup error under dev-app.sh
       "Accessibility permission is required. Grant it in System Settings, then run again.\n", stderr
     )
     exit(2)
@@ -58,6 +58,6 @@ do {
     application.run()
   }
 } catch {
-  fputs("Error: \(error)\n", stderr)
+  fputs("Error: \(error)\n", stderr)  // macos-app:allow-print terminal-facing startup error
   exit(1)
 }
