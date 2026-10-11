@@ -6,19 +6,18 @@ let package = Package(
   name: "MacMouseGestures",
   platforms: [.macOS(.v13)],
   products: [
-    .library(name: "GestureCore", targets: ["GestureCore"]),
     .executable(name: "MacMouseGestures", targets: ["MacMouseGestures"]),
   ],
   targets: [
-    .target(name: "GestureCore"),
-    .target(name: "DockSwipeBridge", cSettings: [.unsafeFlags(["-fobjc-arc"])]),
+    .target(name: "MacMouseGesturesCore"),
+    .target(name: "MacMouseGesturesBridge", cSettings: [.unsafeFlags(["-fobjc-arc"])]),
     .executableTarget(
       name: "MacMouseGestures",
-      dependencies: ["GestureCore", "DockSwipeBridge"]
+      dependencies: ["MacMouseGesturesCore", "MacMouseGesturesBridge"]
     ),
     .testTarget(
-      name: "GestureCoreTests",
-      dependencies: ["GestureCore", "DockSwipeBridge"]
+      name: "MacMouseGesturesCoreTests",
+      dependencies: ["MacMouseGesturesCore", "MacMouseGesturesBridge"]
     ),
   ]
 )

@@ -91,7 +91,7 @@ rejected by runtime evidence.
 - Swift 6.3 / Swift Package Manager
 - AppKit, CoreGraphics, ApplicationServices
 - Private symbols or raw event fields loaded only by the private modes
-- `GestureCore`: deterministic direction/progress/commit logic
+- `MacMouseGesturesCore`: deterministic direction/progress/commit logic
 - `MacMouseGestures`: capture, event construction, posting, logs, and overlay
 - `Tests`: pure sequence and gesture-state regression tests
 

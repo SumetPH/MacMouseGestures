@@ -1,5 +1,5 @@
 import CoreGraphics
-import DockSwipeBridge
+import MacMouseGesturesBridge
 import Testing
 
 @Test("macOS 27 DockSwipe embeds a serializable HID payload without posting input")

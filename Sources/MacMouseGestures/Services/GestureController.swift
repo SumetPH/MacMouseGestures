@@ -1,7 +1,7 @@
 import AppKit
 import ApplicationServices
 @preconcurrency import CoreGraphics
-import GestureCore
+import MacMouseGesturesCore
 import Foundation
 
 private func eventTapCallback(

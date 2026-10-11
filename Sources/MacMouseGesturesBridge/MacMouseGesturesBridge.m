@@ -1,4 +1,4 @@
-#import "DockSwipeBridge.h"
+#import "MacMouseGesturesBridge.h"
 #import <Foundation/Foundation.h>
 #import <dlfcn.h>
 

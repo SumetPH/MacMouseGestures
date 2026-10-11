@@ -1,7 +1,7 @@
 import CoreGraphics
 import Testing
 
-@testable import GestureCore
+@testable import MacMouseGesturesCore
 
 @Suite("Right-drag gesture tracking")
 struct GestureTrackerTests {

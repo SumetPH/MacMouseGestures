@@ -1,9 +1,6 @@
 import CoreGraphics
-import GestureCore
+import MacMouseGesturesCore
 import Foundation
-
-@_silgen_name("CoreDockSendNotification")
-private func CoreDockSendNotification(_ name: CFString, _ unknown: Int)
 
 private let syntheticMarker: Int64 = 0x5350_4143_4553
 private let defaultPixelsPerLine = 10.0

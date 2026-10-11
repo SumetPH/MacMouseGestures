@@ -34,20 +34,20 @@ swift build
 For local development:
 
 ```bash
-./scripts/dev-app.sh
+./Scripts/dev-app.sh
 ```
 
 To create a launchable app bundle:
 
 ```bash
-./scripts/build-app.sh
+./Scripts/build-app.sh
 open "dist/Mac Mouse Gestures.app"
 ```
 
 The bundle script builds release by default. Pass `debug` for a debug bundle:
 
 ```bash
-./scripts/build-app.sh debug
+./Scripts/build-app.sh debug
 ```
 
 The script signs with an Apple Development certificate by default so
@@ -55,7 +55,7 @@ Accessibility permission can persist across rebuilds. Override the identity when
 needed:
 
 ```bash
-CODE_SIGN_IDENTITY="-" ./scripts/build-app.sh
+CODE_SIGN_IDENTITY="-" ./Scripts/build-app.sh
 ```
 
 ## First Run
@@ -100,18 +100,23 @@ Mouse buttons set to No Action keep their normal system behavior.
   mouse/gesture tools running at the same time.
 - Disable competing right-button mappings in other utilities while testing.
 
-See [docs/spec-private-spaces-drag.md](docs/spec-private-spaces-drag.md) for
+See [Docs/spec-private-spaces-drag.md](Docs/spec-private-spaces-drag.md) for
 the investigation notes behind the private Spaces gesture path.
 
 ## Project Layout
 
-- `Sources/GestureCore`: deterministic gesture tracking and fluid gesture
-  planning.
-- `Sources/MacMouseGestures`: menu bar app, event tap, event posting, settings,
-  and logging.
+- `Sources/MacMouseGesturesCore`: deterministic gesture tracking, fluid gesture
+  planning, and mouse button action model (no AppKit).
+- `Sources/MacMouseGesturesBridge`: Objective-C bridge that builds private
+  DockSwipe events.
+- `Sources/MacMouseGestures`: the menu bar app, split into `App/` (entry point,
+  menu bar controller), `Views/` (SwiftUI panel, mouse button recorder), and
+  `Services/` (event tap, event posting, settings, permissions, private APIs,
+  `os.Logger` logging).
+- `Tests/MacMouseGesturesCoreTests`: Swift Testing suites for Core and Bridge.
 - `Assets`: app icon source.
-- `scripts`: development and app-bundle build helpers.
-- `docs`: implementation notes and private gesture investigation.
+- `Scripts`: development and app-bundle build helpers.
+- `Docs`: implementation notes and private gesture investigation.
 
 ## Security and GitHub Publishing Check
 

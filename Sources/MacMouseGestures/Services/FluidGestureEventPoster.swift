@@ -1,7 +1,8 @@
 import CoreGraphics
 import Foundation
-import GestureCore
-import DockSwipeBridge
+import os
+import MacMouseGesturesCore
+import MacMouseGesturesBridge
 
 public final class FluidGestureEventPoster: @unchecked Sendable {
   private let eventSource: CGEventSource?
@@ -47,7 +48,7 @@ public final class FluidGestureEventPoster: @unchecked Sendable {
         UInt32(rawPhase), progress * direction, velocity * direction,
         axis == .horizontal ? 1 : 2, location
       ) else {
-        fputs("Unable to create macOS 27 DockSwipe HID event.\n", stderr)
+        Logger(category: "posting").error("Unable to create macOS 27 DockSwipe HID event.")
         return false
       }
       event.post(tap: .cgSessionEventTap)

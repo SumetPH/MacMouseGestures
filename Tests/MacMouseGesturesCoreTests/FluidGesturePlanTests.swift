@@ -1,6 +1,6 @@
 import Testing
 
-@testable import GestureCore
+@testable import MacMouseGesturesCore
 
 @Suite("Fluid gesture plan")
 struct FluidGesturePlanTests {

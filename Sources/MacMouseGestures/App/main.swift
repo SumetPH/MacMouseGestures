@@ -32,8 +32,7 @@ private final class ApplicationDelegate: NSObject, NSApplicationDelegate {
 }
 
 do {
-  let prompt = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
-  guard AXIsProcessTrustedWithOptions(prompt) else {
+  guard PermissionManager.requestAccessibility() else {
     fputs(
       "Accessibility permission is required. Grant it in System Settings, then run again.\n", stderr
     )

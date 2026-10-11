@@ -1,5 +1,7 @@
 import Combine
 import Foundation
+import MacMouseGesturesCore
+import os
 import ServiceManagement
 
 @MainActor
@@ -46,6 +48,7 @@ final class AppSettings: ObservableObject {
   var onChange: ((Values) -> Void)?
 
   private let defaults: UserDefaults
+  private let logger = Logger(category: "settings")
 
   init(defaults: UserDefaults = .standard) {
     self.defaults = defaults
@@ -107,7 +110,7 @@ final class AppSettings: ObservableObject {
         do {
           try service.register()
         } catch {
-          print("Failed to register SMAppService: \(error)")
+          logger.error("Failed to register SMAppService: \(error, privacy: .public)")
         }
       }
     } else {
@@ -115,7 +118,7 @@ final class AppSettings: ObservableObject {
         do {
           try service.unregister()
         } catch {
-          print("Failed to unregister SMAppService: \(error)")
+          logger.error("Failed to unregister SMAppService: \(error, privacy: .public)")
         }
       }
     }

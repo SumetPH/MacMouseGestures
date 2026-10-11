@@ -1,11 +1,11 @@
-enum MouseButtonAction: String, CaseIterable, Identifiable, Sendable {
+public enum MouseButtonAction: String, CaseIterable, Identifiable, Sendable {
   case none
   case missionControl
   case applicationWindows
 
-  var id: Self { self }
+  public var id: Self { self }
 
-  var displayName: String {
+  public var displayName: String {
     switch self {
     case .none: "No Action"
     case .missionControl: "Mission Control"
